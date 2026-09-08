@@ -48,7 +48,7 @@ func LookupPaymentIDByToken(ctx context.Context, db *sql.DB, token string) (uuid
 	if token == "" {
 		return uuid.Nil, sql.ErrNoRows
 	}
-	var last error = sql.ErrNoRows
+	var last = sql.ErrNoRows
 	for i := 0; i < 8; i++ {
 		var id uuid.UUID
 		err := db.QueryRowContext(ctx, `SELECT id FROM payments WHERE client_token = $1`, token).Scan(&id)
