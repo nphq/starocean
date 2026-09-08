@@ -6,50 +6,71 @@
 @source "../../view";
 
 @theme {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  /* 中文优先：系统黑体 + 西文几何无衬线；数字走 tabular */
+  --font-sans: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", "Menlo", "Consolas", monospace;
 
-  /* Cloudflare 风格主色：中性蓝（链接/主按钮/高亮统一用它） */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #2f7cf6;
-  --color-brand-600: #0f62d6;
-  --color-brand-700: #0043a5;
-  --color-brand-800: #003580;
-  --color-brand-900: #00275e;
-  --color-brand-950: #001a40;
+  /* Horizon 行动蓝（SAP Fiori Morning Horizon #0070F2 族） */
+  --color-brand-50: #e8f1fc;
+  --color-brand-100: #d1e4fa;
+  --color-brand-200: #a4c9f5;
+  --color-brand-300: #6ba6ee;
+  --color-brand-400: #3384e8;
+  --color-brand-500: #0070f2;
+  --color-brand-600: #0057d2;
+  --color-brand-700: #0040b0;
+  --color-brand-800: #00308a;
+  --color-brand-900: #00215e;
+  --color-brand-950: #00143d;
 
-  /* 中性灰（冷灰，去暖色调，向 CF 的 gray 靠） */
-  --color-warm-50: #f9fafb;
-  --color-warm-100: #f3f4f6;
-  --color-warm-200: #e5e7eb;
-  --color-warm-300: #d1d5db;
-  --color-warm-400: #9ca3af;
-  --color-warm-500: #6b7280;
-  --color-warm-600: #4b5563;
-  --color-warm-700: #374151;
-  --color-warm-800: #1f2937;
-  --color-warm-900: #111827;
-  --color-warm-950: #030712;
+  /* 浅色画布：略暖的灰，长时间对着屏幕更轻松 */
+  --color-warm-50: #f6f7f9;
+  --color-warm-100: #eef0f4;
+  --color-warm-200: #e2e6ed;
+  --color-warm-300: #cdd3de;
+  --color-warm-400: #8e98a8;
+  --color-warm-500: #5c6778;
+  --color-warm-600: #3f4b5c;
+  --color-warm-700: #2c3544;
+  --color-warm-800: #1c2430;
+  --color-warm-900: #131920;
+  --color-warm-950: #0c1016;
 
-  --color-amber-50: #fffbeb;
-  --color-amber-500: #f59e0b;
-  --color-amber-600: #d97706;
+  /* 壳层辅助色（登录侧栏） */
+  --color-ink-50: #e8eef4;
+  --color-ink-100: #c5d3e0;
+  --color-ink-400: #7a93ab;
+  --color-ink-500: #4d6884;
+  --color-ink-600: #2e4a66;
+  --color-ink-700: #1c334c;
+  --color-ink-800: #12263a;
+  --color-ink-900: #0b1c2e;
+  --color-ink-950: #07101c;
 
-  --color-emerald-50: #ecfdf5;
-  --color-emerald-500: #10b981;
-  --color-emerald-600: #059669;
+  --color-amber-50: #fff8e6;
+  --color-amber-100: #ffecb8;
+  --color-amber-500: #e8a317;
+  --color-amber-600: #c4840c;
+  --color-amber-700: #9a6508;
 
-  --color-rose-50: #fff1f2;
-  --color-rose-500: #f43f5e;
-  --color-rose-600: #e11d48;
+  --color-emerald-50: #e7f7ef;
+  --color-emerald-100: #c3ebd5;
+  --color-emerald-500: #188918;
+  --color-emerald-600: #107c10;
+  --color-emerald-700: #0b650b;
 
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
-  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
-  --shadow-elevated: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --color-rose-50: #fdeeee;
+  --color-rose-100: #f8c9c9;
+  --color-rose-500: #ee3939;
+  --color-rose-600: #d20a0a;
+  --color-rose-700: #aa0808;
+
+  --shadow-xs: 0 1px 2px rgba(12, 28, 46, 0.04);
+  --shadow-sm: 0 1px 2px rgba(12, 28, 46, 0.05), 0 2px 8px rgba(12, 28, 46, 0.04);
+  --shadow-card: 0 1px 2px rgba(12, 28, 46, 0.04), 0 4px 16px rgba(12, 28, 46, 0.05);
+  --shadow-elevated: 0 8px 24px rgba(12, 28, 46, 0.12);
+  --shadow-shell: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
 @layer base {
@@ -58,87 +79,147 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01" 1;
   }
   body {
-    @apply bg-warm-50 text-warm-900 dark:bg-warm-900 dark:text-warm-100;
+    @apply bg-warm-50 text-warm-900 dark:bg-warm-950 dark:text-warm-100;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "ss01" 1;
   }
   ::selection {
-    @apply bg-brand-500/20;
+    @apply bg-brand-500/20 text-brand-900;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
   }
 }
 
 @layer components {
-  /* CF 风格：小圆角（6-8px）、克制阴影、边框为主 */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
            text-sm font-semibold bg-brand-600 text-white
            hover:bg-brand-700 active:bg-brand-800
-           transition-colors duration-100
+           transition-[background-color,box-shadow] duration-150
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
+  .btn-primary:hover {
+    box-shadow: 0 4px 14px rgba(0, 87, 210, 0.22);
+  }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
            text-sm font-medium bg-white dark:bg-warm-800
            text-warm-700 dark:text-warm-200
-           border border-warm-300 dark:border-warm-700
-           hover:bg-warm-50 dark:hover:bg-warm-700
-           transition-colors duration-100;
+           border border-warm-300 dark:border-warm-600
+           hover:border-brand-400 hover:text-brand-700
+           dark:hover:border-brand-500 dark:hover:text-brand-300
+           transition-colors duration-150;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
            text-sm font-medium text-warm-500 dark:text-warm-400
            hover:text-brand-700 dark:hover:text-brand-300
            hover:bg-brand-50 dark:hover:bg-warm-800
-           transition-colors duration-100;
+           transition-colors duration-150;
   }
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md
            text-sm font-medium text-rose-600 dark:text-rose-400
            hover:bg-rose-50 dark:hover:bg-rose-950/30
            border border-transparent hover:border-rose-200 dark:hover:border-rose-800/50
-           transition-colors duration-100;
+           transition-colors duration-150;
   }
   .card {
-    @apply bg-white dark:bg-warm-800 rounded-lg border border-warm-200 dark:border-warm-700/60 shadow-xs;
+    @apply bg-white dark:bg-warm-800 rounded-xl border border-warm-200/90 dark:border-warm-700/60 shadow-sm;
   }
   .input-field {
-    @apply w-full px-3 py-2 rounded-md
-           border border-warm-300 dark:border-warm-700
-           bg-white dark:bg-warm-800
+    @apply w-full px-3.5 py-2.5 rounded-lg
+           border border-warm-300 dark:border-warm-600
+           bg-white dark:bg-warm-900
            text-warm-900 dark:text-warm-100
            placeholder-warm-400 dark:placeholder-warm-500
-           focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-600
-           transition-colors duration-100 text-sm;
+           focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600
+           transition-colors duration-150 text-sm;
   }
   .select-field {
-    @apply w-full px-3 py-2 rounded-md
-           border border-warm-300 dark:border-warm-700
-           bg-white dark:bg-warm-800
+    @apply w-full px-3.5 py-2.5 rounded-lg
+           border border-warm-300 dark:border-warm-600
+           bg-white dark:bg-warm-900
            text-warm-900 dark:text-warm-100
-           focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-600
-           transition-colors duration-100 text-sm appearance-none;
+           focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-600
+           transition-colors duration-150 text-sm appearance-none;
   }
-  /* CF 表头：无底色、纯大写灰字 + 下边框 */
   .table-header {
-    @apply px-4 py-2.5 text-left text-[11px] font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider border-b border-warm-200 dark:border-warm-700/60 whitespace-nowrap;
+    @apply px-5 py-3 text-left text-[11px] font-semibold text-warm-500 dark:text-warm-400
+           uppercase tracking-[0.08em] bg-warm-50/80 dark:bg-warm-900/60
+           border-b border-warm-200 dark:border-warm-700 whitespace-nowrap;
   }
   .table-cell {
-    @apply px-4 py-3 text-sm;
+    @apply px-5 py-3.5 text-sm;
+  }
+  .table-sticky thead th {
+    @apply sticky top-0 z-10;
   }
   .badge {
-    @apply inline-flex items-center px-2 py-px rounded text-[11px] font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide;
   }
   .nav-link {
-    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-normal
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
            text-warm-600 dark:text-warm-400
-           hover:text-warm-900 dark:hover:text-warm-100
-           hover:bg-warm-100 dark:hover:bg-warm-800
-           transition-colors duration-100;
+           hover:bg-warm-100 hover:text-warm-900
+           dark:hover:bg-warm-800 dark:hover:text-warm-100
+           transition-colors duration-150;
   }
   .nav-link-active {
-    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-medium
-           text-brand-700 dark:text-brand-300
-           bg-brand-50 dark:bg-brand-950/50
-           transition-colors duration-100;
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold
+           text-brand-700 bg-brand-50
+           dark:text-brand-300 dark:bg-brand-950/50
+           transition-colors duration-150;
+  }
+  .nav-link-active::before {
+    content: "";
+    @apply absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-600;
+  }
+  .shell-search {
+    @apply flex w-52 items-center gap-2 rounded-full border border-warm-200 bg-warm-50
+           px-4 py-2 text-sm text-warm-600 md:w-80
+           focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-500/15
+           dark:border-warm-700 dark:bg-warm-900 dark:text-warm-300
+           transition-colors duration-150;
+  }
+  .kpi-tile {
+    @apply relative overflow-hidden rounded-2xl border border-warm-200/80 bg-white px-5 py-6 shadow-xs
+           dark:border-warm-700/60 dark:bg-warm-800;
+  }
+  .kpi-tile::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-500 to-brand-300;
+  }
+}
+
+@layer utilities {
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-warm-300) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: var(--color-warm-300);
+    border-radius: 99px;
+  }
+  .dark .scroll-thin {
+    scrollbar-color: var(--color-warm-600) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

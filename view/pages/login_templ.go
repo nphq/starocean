@@ -47,56 +47,69 @@ func Login(v LoginView, companyName string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"icon\" type=\"image/png\" href=\"/static/icon.png\"><link rel=\"stylesheet\" href=\"/static/css/output.css\"></head><body class=\"flex min-h-screen items-center justify-center bg-warm-50 px-4 dark:bg-warm-900\"><div class=\"card w-full max-w-sm p-8\"><div class=\"mb-6 flex items-center gap-3\"><img src=\"/static/icon.png\" alt=\"\" width=\"40\" height=\"40\" class=\"h-10 w-10 rounded-lg shadow-sm\"><div><h1 class=\"text-lg font-semibold text-warm-900 dark:text-warm-100\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"icon\" type=\"image/png\" href=\"/static/icon.png\"><link rel=\"stylesheet\" href=\"/static/css/output.css\"><script>\n\t\t\t\ttry {\n\t\t\t\t\tvar d = localStorage.getItem('darkMode');\n\t\t\t\t\tif (d === 'true' || (!d && matchMedia('(prefers-color-scheme: dark)').matches)) {\n\t\t\t\t\t\tdocument.documentElement.classList.add('dark');\n\t\t\t\t\t}\n\t\t\t\t} catch (e) {}\n\t\t\t</script></head><body class=\"min-h-screen bg-warm-50 text-warm-900 dark:bg-warm-950 dark:text-warm-100\"><div class=\"grid min-h-screen lg:grid-cols-2\"><aside class=\"relative hidden overflow-hidden bg-ink-900 text-white lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16\"><div class=\"pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-brand-600/25 blur-3xl\"></div><div class=\"pointer-events-none absolute -bottom-16 left-10 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl\"></div><div class=\"relative\"><div class=\"flex items-center gap-3\"><img src=\"/static/icon.png\" alt=\"\" width=\"40\" height=\"40\" class=\"h-10 w-10 rounded-lg ring-1 ring-white/20\"><div><p class=\"text-sm font-semibold tracking-wide\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(companyName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 23, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 35, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</h1><p class=\"text-xs text-warm-400\">轻量 ERP · 登录后继续</p></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</p><p class=\"text-[11px] uppercase tracking-[0.16em] text-ink-400\">StarOcean</p></div></div><h1 class=\"mt-16 max-w-md text-4xl font-semibold leading-tight tracking-tight\">把每天要做的账<br>做得清楚、舒服。</h1><p class=\"mt-5 max-w-sm text-sm leading-relaxed text-ink-100/70\">销售、采购、收付和总账在同一处完成。界面克制，打开即用，不抢注意力。</p></div><ul class=\"relative grid max-w-md grid-cols-3 gap-3 text-xs text-ink-100/80\"><li class=\"rounded-lg border border-white/10 bg-white/5 px-3 py-3\"><p class=\"font-semibold text-white\">销售闭环</p><p class=\"mt-1 text-ink-400\">草稿到开票</p></li><li class=\"rounded-lg border border-white/10 bg-white/5 px-3 py-3\"><p class=\"font-semibold text-white\">往来核销</p><p class=\"mt-1 text-ink-400\">收付可追溯</p></li><li class=\"rounded-lg border border-white/10 bg-white/5 px-3 py-3\"><p class=\"font-semibold text-white\">简易总账</p><p class=\"mt-1 text-ink-400\">凭证到报表</p></li></ul></aside><main class=\"flex items-center justify-center px-6 py-12\"><div class=\"w-full max-w-[400px]\"><div class=\"mb-8 flex items-center gap-3 lg:hidden\"><img src=\"/static/icon.png\" alt=\"\" width=\"40\" height=\"40\" class=\"h-10 w-10 rounded-lg shadow-sm\"><div><h1 class=\"text-lg font-semibold\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(companyName)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 62, Col: 55}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</h1><p class=\"text-xs text-warm-400\">轻量 ERP</p></div></div><p class=\"text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-600\">Sign in</p><h2 class=\"mt-2 text-2xl font-semibold tracking-tight\">登录工作台</h2><p class=\"mt-2 text-sm text-warm-500\">使用管理员账号进入进销存与账务。</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if v.Error != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-600 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-400\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div class=\"mt-5 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Error)
+			var templ_7745c5c3_Var5 string
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 28, Col: 174}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 70, Col: 197}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<form action=\"/login\" method=\"post\" class=\"space-y-4\"><input type=\"hidden\" name=\"next\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<form action=\"/login\" method=\"post\" class=\"mt-8 space-y-4\"><input type=\"hidden\" name=\"next\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Next)
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Next)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 31, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/login.templ`, Line: 73, Col: 54}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"> <label class=\"block\"><span class=\"mb-1 block text-xs font-medium text-warm-500\">用户名</span> <input type=\"text\" name=\"username\" autocomplete=\"username\" required autofocus class=\"input-field\"></label> <label class=\"block\"><span class=\"mb-1 block text-xs font-medium text-warm-500\">密码</span> <input type=\"password\" name=\"password\" autocomplete=\"current-password\" required class=\"input-field\"></label> <button type=\"submit\" class=\"btn-primary w-full\">登录</button></form></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"> <label class=\"block\"><span class=\"mb-1.5 block text-xs font-semibold text-warm-600\">用户名</span> <input type=\"text\" name=\"username\" autocomplete=\"username\" required autofocus class=\"input-field\"></label> <label class=\"block\"><span class=\"mb-1.5 block text-xs font-semibold text-warm-600\">密码</span> <input type=\"password\" name=\"password\" autocomplete=\"current-password\" required class=\"input-field\"></label> <button type=\"submit\" class=\"btn-primary mt-2 w-full py-2.5\">进入系统</button></form></div></main></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

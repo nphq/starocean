@@ -21,7 +21,7 @@ func (h *Handler) Dashboard(c *gin.Context) {
 		return
 	}
 	points, _ := h.monthPoints(ctx)
-	h.renderPage(c, "仪表盘", pages.Dashboard(dash, points))
+	h.renderPage(c, "工作台", pages.Dashboard(dash, points))
 }
 
 func (h *Handler) dashboardData(ctx context.Context) (*models.DashboardData, error) {

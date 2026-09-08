@@ -8,36 +8,41 @@ import (
 	"github.com/nphq/starocean/view/component"
 )
 
-// Dashboard 仪表盘：指标卡 + CSS 柱状趋势（零 JS 图表） + 最近订单 + 库存预警。
+// Dashboard 工作台：KPI 磁贴 + CSS 柱状趋势 + 最近订单 + 库存预警。
 templ Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) {
-	@component.PageHead("仪表盘", "今日业务概览与关键指标。") {
+	@component.PageHead("工作台", "今日待办、经营数字与库存风险，一张屏看完。") {
 		<a href="/sales/new" class="btn-primary">新建销售订单</a>
-		<a href="/products" class="btn-secondary">商品资料</a>
+		<a href="/purchases/new" class="btn-secondary">新建采购单</a>
 	}
-	<div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+	<div class="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
 		@component.Stat("本月销售额", "¥"+d.MonthSales)
 		@component.Stat("待处理订单", strconv.FormatInt(d.PendingOrders, 10))
 		@component.Stat("库存预警", strconv.FormatInt(d.LowStockCount, 10))
 		@component.Stat("活跃客户", strconv.FormatInt(d.ActiveCustomers, 10))
 	</div>
-	<div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+	<div class="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-3">
 		@component.Stat("待审批报销", strconv.FormatInt(d.PendingReimbursements, 10))
 		@component.Stat("在职员工", strconv.FormatInt(d.ActiveEmployees, 10))
 		@component.Stat("合同将到期", strconv.FormatInt(d.ExpiringContracts, 10))
 	</div>
-	<div class="card mb-6 p-6">
-		<h3 class="mb-4 font-semibold text-warm-900 dark:text-warm-100">近12个月销售与采购趋势</h3>
-		@MonthBars(points)
-		<div class="mt-3 flex gap-5 text-xs text-warm-400">
-			<span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500"></span>销售</span>
-			<span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-sm bg-brand-500"></span>采购</span>
+	<div class="card mb-8 p-6 md:p-8">
+		<div class="mb-5 flex items-end justify-between gap-3">
+			<div>
+				<h3 class="text-sm font-semibold text-warm-900 dark:text-warm-100">近 12 个月销售与采购</h3>
+				<p class="mt-0.5 text-xs text-warm-400">柱高按期间峰值归一，便于对照进销节奏</p>
+			</div>
+			<div class="flex gap-4 text-xs text-warm-500">
+				<span class="flex items-center gap-1.5"><span class="inline-block h-2 w-2.5 rounded-sm bg-emerald-600"></span>销售</span>
+				<span class="flex items-center gap-1.5"><span class="inline-block h-2 w-2.5 rounded-sm bg-brand-600"></span>采购</span>
+			</div>
 		</div>
+		@MonthBars(points)
 	</div>
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<div class="card overflow-hidden lg:col-span-2">
-			<div class="flex items-center justify-between border-b border-warm-200 px-6 py-4 dark:border-warm-700/60">
-				<h3 class="font-semibold text-warm-900 dark:text-warm-100">最近销售订单</h3>
-				<a href="/sales" class="btn-ghost text-xs">查看全部 →</a>
+			<div class="flex items-center justify-between border-b border-warm-200 px-5 py-3.5 dark:border-warm-700/60">
+				<h3 class="text-sm font-semibold text-warm-900 dark:text-warm-100">最近销售订单</h3>
+				<a href="/sales" class="btn-ghost text-xs">全部订单</a>
 			</div>
 			<table class="w-full">
 				<thead>
@@ -66,12 +71,12 @@ templ Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) {
 			</table>
 		</div>
 		<div class="card flex flex-col overflow-hidden">
-			<div class="border-b border-warm-200 px-6 py-4 dark:border-warm-700/60">
-				<h3 class="font-semibold text-warm-900 dark:text-warm-100">库存预警</h3>
+			<div class="border-b border-warm-200 px-5 py-3.5 dark:border-warm-700/60">
+				<h3 class="text-sm font-semibold text-warm-900 dark:text-warm-100">库存预警</h3>
 			</div>
 			<div class="flex-1 space-y-3 overflow-y-auto p-5">
 				for _, p := range d.LowStockItems {
-					<a href={ templ.URL("/inventory/" + p.ID.String()) } class="flex items-center gap-3 rounded-lg border border-warm-100 bg-warm-50/70 p-3 transition-all hover:border-rose-500/30 dark:border-warm-700/40 dark:bg-warm-900/50">
+					<a href={ templ.URL("/inventory/" + p.ID.String()) } class="flex items-center gap-3 rounded-lg border border-rose-100 bg-rose-50/50 p-3 transition-colors hover:border-rose-300 dark:border-rose-900/40 dark:bg-rose-950/20">
 						<div class="min-w-0 flex-1">
 							<h4 class="truncate text-sm font-semibold text-warm-900 dark:text-warm-100">{ p.Name }</h4>
 							<p class="tnum mt-0.5 text-xs text-warm-500">当前 <span class="font-bold text-rose-500">{ strconv.Itoa(int(p.CurrentStock)) }</span> / 安全线 { strconv.Itoa(int(p.SafetyStock)) }</p>
@@ -98,9 +103,9 @@ templ MonthBars(points []vmodel.MonthPoint) {
 	<div class="flex h-44 items-end gap-2" role="img" aria-label="近12个月销售与采购趋势">
 		for _, p := range points {
 			<div class="flex min-w-0 flex-1 flex-col items-center gap-1" title={ p.Label + " 销售¥" + strconv.FormatFloat(p.Sales, 'f', 2, 64) + " 采购¥" + strconv.FormatFloat(p.Purchases, 'f', 2, 64) }>
-				<div class="flex h-32 w-full items-end justify-center gap-1">
-					<div class="w-3 rounded-sm bg-emerald-500/80" style={ "height:" + pct(p.Sales, chartPeak(points)) }></div>
-					<div class="w-3 rounded-sm bg-brand-500/80" style={ "height:" + pct(p.Purchases, chartPeak(points)) }></div>
+				<div class="flex h-36 w-full items-end justify-center gap-0.5">
+					<div class="w-[45%] max-w-3 rounded-t-sm bg-emerald-600/90" style={ "height:" + pct(p.Sales, chartPeak(points)) }></div>
+					<div class="w-[45%] max-w-3 rounded-t-sm bg-brand-600/90" style={ "height:" + pct(p.Purchases, chartPeak(points)) }></div>
 				</div>
 				<span class="text-[10px] text-warm-400">{ shortMonth(p.Label) }</span>
 			</div>
