@@ -158,6 +158,8 @@ func (h *Handler) RegisterHTML(r *gin.Engine) {
 		web.POST("/ledger/vouchers", h.LedgerVoucherCreate)
 		web.GET("/ledger/vouchers/:id", h.LedgerVoucherDetail)
 		web.POST("/ledger/vouchers/:id/post", h.LedgerVoucherPost)
+		web.POST("/ledger/vouchers/:id/review", h.LedgerVoucherReview)
+		web.POST("/ledger/vouchers/:id/reject", h.LedgerVoucherReject)
 		web.GET("/ledger/books", h.LedgerBooks)
 		web.GET("/ledger/reports", h.LedgerReports)
 

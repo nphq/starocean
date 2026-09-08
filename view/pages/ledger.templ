@@ -110,7 +110,7 @@ templ LedgerVoucherList(items []ledger.Voucher, q, status string, page int32, to
 				class="input-field md:w-80"
 			/>
 			<div class="flex gap-1">
-				for _, s := range []string{"all", "draft", "posted"} {
+				for _, s := range []string{"all", "draft", "reviewed", "posted"} {
 					<a
 						href={ templ.URL("/ledger/vouchers?status=" + s) }
 						hx-get={ "/ledger/vouchers?status=" + s } hx-target="#list" hx-swap="innerHTML" hx-push-url="true"
@@ -129,6 +129,8 @@ func voucherStatusTab(s string) string {
 	switch s {
 	case "draft":
 		return "草稿"
+	case "reviewed":
+		return "待审核"
 	case "posted":
 		return "已过账"
 	default:
@@ -208,7 +210,7 @@ templ LedgerVoucherForm(accounts []ledger.Account, errMsg string) {
 	</div>
 }
 
-templ LedgerVoucherDetail(v ledger.Voucher, errMsg string) {
+templ LedgerVoucherDetail(v ledger.Voucher, requireReview bool, errMsg string) {
 	@component.PageHead(v.VoucherNo, v.VoucherDate) {
 		<a href="/ledger/vouchers" class="btn-ghost text-xs">← 返回列表</a>
 	}
@@ -217,9 +219,30 @@ templ LedgerVoucherDetail(v ledger.Voucher, errMsg string) {
 		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(v.Status) }>{ vmodel.StatusLabel(v.Status) }</span>
 		<span class="tnum text-sm text-warm-500">借 { vmodel.Money(v.DebitTotal) } · 贷 { vmodel.Money(v.CreditTotal) }</span>
 		<span class="flex-1"></span>
+		if v.Status == "reviewed" && v.ReviewedBy != "" {
+			<span class="text-xs text-warm-500">审核：{ v.ReviewedBy }</span>
+		}
+		if v.ReviewNote != "" {
+			<span class="text-xs text-warm-400">意见：{ v.ReviewNote }</span>
+		}
 		if v.Status == "draft" {
+			if requireReview {
+				<form action={ templ.URL("/ledger/vouchers/" + v.ID.String() + "/review") } method="post" onsubmit="return confirm('送审后需他人审核才能过账，继续吗？')">
+					<button type="submit" class="btn-primary !py-2 text-xs">送审</button>
+				</form>
+			} else {
+				<form action={ templ.URL("/ledger/vouchers/" + v.ID.String() + "/post") } method="post" onsubmit="return confirm('过账后不可修改，继续吗？')">
+					<button type="submit" class="btn-primary !py-2 text-xs">过账</button>
+				</form>
+			}
+		}
+		if v.Status == "reviewed" {
 			<form action={ templ.URL("/ledger/vouchers/" + v.ID.String() + "/post") } method="post" onsubmit="return confirm('过账后不可修改，继续吗？')">
 				<button type="submit" class="btn-primary !py-2 text-xs">过账</button>
+			</form>
+			<form action={ templ.URL("/ledger/vouchers/" + v.ID.String() + "/reject") } method="post">
+				<input type="text" name="reason" placeholder="驳回原因（必填）" required class="input-field !py-1.5 text-xs" />
+				<button type="submit" class="btn-ghost !py-2 text-xs">驳回</button>
 			</form>
 		}
 	</div>

@@ -117,7 +117,7 @@ func (h *Handler) LedgerVoucherCreate(c *gin.Context) {
 		VoucherDate: date,
 		Summary:     strings.TrimSpace(c.PostForm("summary")),
 		Lines:       lines,
-	}, "web")
+	}, ledger.Actor(c))
 	if err != nil {
 		fail(err.Error())
 		return
@@ -140,7 +140,68 @@ func (h *Handler) LedgerVoucherDetail(c *gin.Context) {
 		c.String(http.StatusNotFound, "凭证不存在")
 		return
 	}
-	h.renderPage(c, v.VoucherNo, pages.LedgerVoucherDetail(v, ""))
+	settings, _ := ledger.GetSettings(c.Request.Context(), h.db)
+	h.renderPage(c, v.VoucherNo, pages.LedgerVoucherDetail(v, settings.RequireReview, ""))
+}
+
+func (h *Handler) LedgerVoucherReview(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.String(http.StatusBadRequest, "无效的ID")
+		return
+	}
+	ctx := c.Request.Context()
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "操作失败")
+		return
+	}
+	defer tx.Rollback()
+	if err := ledger.ReviewVoucher(ctx, tx, id, ledger.Actor(c), strings.TrimSpace(c.PostForm("note"))); err != nil {
+		v, verr := ledger.GetVoucher(ctx, h.db, id)
+		if verr != nil {
+			c.String(http.StatusNotFound, "凭证不存在")
+			return
+		}
+		settings, _ := ledger.GetSettings(ctx, h.db)
+		h.renderPage(c, v.VoucherNo, pages.LedgerVoucherDetail(v, settings.RequireReview, err.Error()))
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.String(http.StatusInternalServerError, "操作失败")
+		return
+	}
+	redirect(c, "/ledger/vouchers/"+id.String())
+}
+
+func (h *Handler) LedgerVoucherReject(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.String(http.StatusBadRequest, "无效的ID")
+		return
+	}
+	ctx := c.Request.Context()
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "操作失败")
+		return
+	}
+	defer tx.Rollback()
+	if err := ledger.RejectVoucher(ctx, tx, id, strings.TrimSpace(c.PostForm("reason"))); err != nil {
+		v, verr := ledger.GetVoucher(ctx, h.db, id)
+		if verr != nil {
+			c.String(http.StatusNotFound, "凭证不存在")
+			return
+		}
+		settings, _ := ledger.GetSettings(ctx, h.db)
+		h.renderPage(c, v.VoucherNo, pages.LedgerVoucherDetail(v, settings.RequireReview, err.Error()))
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.String(http.StatusInternalServerError, "操作失败")
+		return
+	}
+	redirect(c, "/ledger/vouchers/"+id.String())
 }
 
 func (h *Handler) LedgerVoucherPost(c *gin.Context) {
@@ -156,13 +217,14 @@ func (h *Handler) LedgerVoucherPost(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	if err := ledger.PostVoucher(ctx, tx, id, "web"); err != nil {
+	if err := ledger.PostVoucher(ctx, tx, id, ledger.Actor(c)); err != nil {
 		v, verr := ledger.GetVoucher(ctx, h.db, id)
 		if verr != nil {
 			c.String(http.StatusNotFound, "凭证不存在")
 			return
 		}
-		h.renderPage(c, v.VoucherNo, pages.LedgerVoucherDetail(v, err.Error()))
+		settings, _ := ledger.GetSettings(ctx, h.db)
+		h.renderPage(c, v.VoucherNo, pages.LedgerVoucherDetail(v, settings.RequireReview, err.Error()))
 		return
 	}
 	if err := tx.Commit(); err != nil {

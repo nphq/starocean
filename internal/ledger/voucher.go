@@ -30,16 +30,18 @@ func GetVoucher(ctx context.Context, db DBTX, id uuid.UUID) (Voucher, error) {
 const voucherSelect = `
 	SELECT v.id, v.voucher_no, v.word, v.voucher_date::text, v.period_year, v.period_month,
 	       v.attachment_count, v.summary, v.status, v.source_type, v.source_id, v.prepared_by,
-	       v.posted_at, v.posted_by, v.reverses_id, v.reversed_by_id, v.debit_total, v.credit_total, v.created_at
+	       v.posted_at, v.posted_by, v.reverses_id, v.reversed_by_id, v.debit_total, v.credit_total,
+	       v.created_at, v.reviewed_by, v.reviewed_at, v.review_note
 	FROM gl_vouchers v`
 
 func scanVoucher(row *sql.Row) (Voucher, error) {
 	var v Voucher
 	var sourceID, reverses, reversed uuid.NullUUID
-	var postedAt sql.NullTime
+	var postedAt, reviewedAt sql.NullTime
 	err := row.Scan(&v.ID, &v.VoucherNo, &v.Word, &v.VoucherDate, &v.PeriodYear, &v.PeriodMonth,
 		&v.AttachmentCount, &v.Summary, &v.Status, &v.SourceType, &sourceID, &v.PreparedBy,
-		&postedAt, &v.PostedBy, &reverses, &reversed, &v.DebitTotal, &v.CreditTotal, &v.CreatedAt)
+		&postedAt, &v.PostedBy, &reverses, &reversed, &v.DebitTotal, &v.CreditTotal, &v.CreatedAt,
+		&v.ReviewedBy, &reviewedAt, &v.ReviewNote)
 	if err != nil {
 		return v, err
 	}
@@ -50,6 +52,10 @@ func scanVoucher(row *sql.Row) (Voucher, error) {
 	if postedAt.Valid {
 		t := postedAt.Time
 		v.PostedAt = &t
+	}
+	if reviewedAt.Valid {
+		t := reviewedAt.Time
+		v.ReviewedAt = &t
 	}
 	if reverses.Valid {
 		id := reverses.UUID
@@ -147,10 +153,11 @@ func ListVouchers(ctx context.Context, db DBTX, year, month int, status, q strin
 func scanVoucherRow(rows *sql.Rows) (Voucher, error) {
 	var v Voucher
 	var sourceID, reverses, reversed uuid.NullUUID
-	var postedAt sql.NullTime
+	var postedAt, reviewedAt sql.NullTime
 	err := rows.Scan(&v.ID, &v.VoucherNo, &v.Word, &v.VoucherDate, &v.PeriodYear, &v.PeriodMonth,
 		&v.AttachmentCount, &v.Summary, &v.Status, &v.SourceType, &sourceID, &v.PreparedBy,
-		&postedAt, &v.PostedBy, &reverses, &reversed, &v.DebitTotal, &v.CreditTotal, &v.CreatedAt)
+		&postedAt, &v.PostedBy, &reverses, &reversed, &v.DebitTotal, &v.CreditTotal, &v.CreatedAt,
+		&v.ReviewedBy, &reviewedAt, &v.ReviewNote)
 	if err != nil {
 		return v, err
 	}
@@ -161,6 +168,10 @@ func scanVoucherRow(rows *sql.Rows) (Voucher, error) {
 	if postedAt.Valid {
 		t := postedAt.Time
 		v.PostedAt = &t
+	}
+	if reviewedAt.Valid {
+		t := reviewedAt.Time
+		v.ReviewedAt = &t
 	}
 	if reverses.Valid {
 		id := reverses.UUID
@@ -195,16 +206,35 @@ func applyMovement(ctx context.Context, db DBTX, year, month int, code string, d
 }
 
 func PostVoucher(ctx context.Context, db DBTX, id uuid.UUID, postedBy string) error {
-	return postVoucher(ctx, db, id, postedBy, false)
+	return postVoucher(ctx, db, id, postedBy, false, false)
 }
 
-func postVoucher(ctx context.Context, db DBTX, id uuid.UUID, postedBy string, allowClosed bool) error {
+// postVoucher 过账凭证。skipReview=true 用于自动制单/红冲（确定性单据，无需审核，
+// 含 review 开启时也直接过账，对标 SAP 集成凭证直接过账）；false 时按
+// require_review 开关分流：开启仅接受 reviewed，关闭接受 draft/reviewed（单步兼容）。
+func postVoucher(ctx context.Context, db DBTX, id uuid.UUID, postedBy string, allowClosed, skipReview bool) error {
 	v, err := GetVoucher(ctx, db, id)
 	if err != nil {
 		return err
 	}
-	if v.Status != "draft" {
-		return fmt.Errorf("只有草稿凭证可以过账")
+	if skipReview {
+		if v.Status != "draft" {
+			return fmt.Errorf("只有草稿凭证可以过账")
+		}
+	} else {
+		st, err := loadSettings(ctx, db)
+		if err != nil {
+			return fmt.Errorf("读取总账设置: %w", err)
+		}
+		if st.RequireReview {
+			if v.Status != "reviewed" {
+				return fmt.Errorf("凭证未审核，不能过账")
+			}
+		} else {
+			if v.Status != "draft" && v.Status != "reviewed" {
+				return fmt.Errorf("只有草稿凭证可以过账")
+			}
+		}
 	}
 	if !allowClosed {
 		if err := requireOpenPeriod(ctx, db, v.PeriodYear, v.PeriodMonth); err != nil {
@@ -221,13 +251,58 @@ func postVoucher(ctx context.Context, db DBTX, id uuid.UUID, postedBy string, al
 	}
 	res, err := db.ExecContext(ctx, `
 		UPDATE gl_vouchers SET status='posted', posted_at=NOW(), posted_by=$2, updated_at=NOW()
-		WHERE id=$1 AND status='draft'`, id, postedBy)
+		WHERE id=$1 AND status IN ('draft','reviewed')`, id, postedBy)
 	if err != nil {
 		return err
 	}
 	n, _ := res.RowsAffected()
 	if n != 1 {
 		return fmt.Errorf("过账失败，凭证状态已变化")
+	}
+	return nil
+}
+
+// ReviewVoucher 审核：draft → reviewed。审核人不得为制单人；仅审核借贷平衡的草稿凭证。
+func ReviewVoucher(ctx context.Context, db DBTX, id uuid.UUID, reviewedBy, note string) error {
+	v, err := GetVoucher(ctx, db, id)
+	if err != nil {
+		return err
+	}
+	if v.Status != "draft" {
+		return fmt.Errorf("只有草稿凭证可以审核")
+	}
+	if reviewedBy != "" && v.PreparedBy != "" && reviewedBy == v.PreparedBy {
+		return fmt.Errorf("审核人不能与制单人为同一人")
+	}
+	if !v.DebitTotal.Equal(v.CreditTotal) {
+		return fmt.Errorf("借贷不平衡，不能审核")
+	}
+	_, err = db.ExecContext(ctx, `
+		UPDATE gl_vouchers SET status='reviewed', reviewed_by=$2, reviewed_at=NOW(), review_note=$3, updated_at=NOW()
+		WHERE id=$1 AND status='draft'`, id, reviewedBy, note)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// RejectVoucher 驳回：reviewed → draft，必填驳回原因写入 review_note。
+func RejectVoucher(ctx context.Context, db DBTX, id uuid.UUID, reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		return fmt.Errorf("驳回原因不能为空")
+	}
+	v, err := GetVoucher(ctx, db, id)
+	if err != nil {
+		return err
+	}
+	if v.Status != "reviewed" {
+		return fmt.Errorf("只有已审核凭证可以驳回")
+	}
+	_, err = db.ExecContext(ctx, `
+		UPDATE gl_vouchers SET status='draft', reviewed_by='', reviewed_at=NULL, review_note=$2, updated_at=NOW()
+		WHERE id=$1 AND status='reviewed'`, id, reason)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -308,7 +383,7 @@ func reverseVoucher(ctx context.Context, db DBTX, id uuid.UUID, preparedBy strin
 	if _, err := db.ExecContext(ctx, `UPDATE gl_vouchers SET reversed_by_id=$2, updated_at=NOW() WHERE id=$1`, orig.ID, revID); err != nil {
 		return Voucher{}, err
 	}
-	if err := postVoucher(ctx, db, revID, preparedBy, allowClosed); err != nil {
+	if err := postVoucher(ctx, db, revID, preparedBy, allowClosed, true); err != nil {
 		return Voucher{}, err
 	}
 	return GetVoucher(ctx, db, revID)
@@ -355,7 +430,8 @@ func createAndPost(ctx context.Context, db DBTX, in VoucherInput, preparedBy str
 	if err != nil {
 		return Voucher{}, err
 	}
-	if err := PostVoucher(ctx, db, v.ID, preparedBy); err != nil {
+	// 自动制单/业务事件：直接过账，不走审核（skipReview）。开关开启时依然生效。
+	if err := postVoucher(ctx, db, v.ID, preparedBy, false, true); err != nil {
 		return Voucher{}, err
 	}
 	return GetVoucher(ctx, db, v.ID)
@@ -365,7 +441,7 @@ func hasSourceVoucher(ctx context.Context, db DBTX, sourceType string, sourceID 
 	var n int
 	err := db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM gl_vouchers
-		WHERE source_type=$1 AND source_id=$2 AND reverses_id IS NULL AND reversed_by_id IS NULL AND status IN ('draft','posted')`,
+		WHERE source_type=$1 AND source_id=$2 AND reverses_id IS NULL AND reversed_by_id IS NULL AND status IN ('draft','reviewed','posted')`,
 		sourceType, sourceID).Scan(&n)
 	return n > 0, err
 }

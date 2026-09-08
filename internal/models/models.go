@@ -14,20 +14,21 @@ type User struct {
 }
 
 type Product struct {
-	ID            uuid.UUID       `json:"id"`
-	Code          string          `json:"code"`
-	Name          string          `json:"name"`
-	Category      string          `json:"category"`
-	Unit          string          `json:"unit"`
-	SalePrice     decimal.Decimal `json:"sale_price"`
-	CostPrice     decimal.Decimal `json:"cost_price"`
-	SafetyStock   int32           `json:"safety_stock"`
-	CurrentStock  int32           `json:"current_stock"`
-	PricingType   string          `json:"pricing_type"`
-	ShelfLifeDays int32           `json:"shelf_life_days"`
-	CreatedAt     time.Time       `json:"created_at"`
-	CompanyID     string          `json:"company_id"`
-	Properties    string          `json:"properties"`
+	ID              uuid.UUID       `json:"id"`
+	Code            string          `json:"code"`
+	Name            string          `json:"name"`
+	Category        string          `json:"category"`
+	Unit            string          `json:"unit"`
+	SalePrice       decimal.Decimal `json:"sale_price"`
+	CostPrice       decimal.Decimal `json:"cost_price"`
+	SafetyStock     int32           `json:"safety_stock"`
+	CurrentStock    int32           `json:"current_stock"`
+	PricingType     string          `json:"pricing_type"`
+	ShelfLifeDays   int32           `json:"shelf_life_days"`
+	DefaultTaxRate  decimal.Decimal `json:"default_tax_rate"`
+	CreatedAt       time.Time       `json:"created_at"`
+	CompanyID       string          `json:"company_id"`
+	Properties      string          `json:"properties"`
 }
 
 type Customer struct {
@@ -89,6 +90,7 @@ type SalesOrderItem struct {
 	Quantity       int32           `json:"quantity"`
 	UnitPrice      decimal.Decimal `json:"unit_price"`
 	Amount         decimal.Decimal `json:"amount"`
+	TaxRate        decimal.Decimal `json:"tax_rate"`
 	PricingType    string          `json:"pricing_type"`
 	ActualQuantity decimal.Decimal `json:"actual_quantity"`
 	ActualAmount   decimal.Decimal `json:"actual_amount"`
@@ -124,6 +126,7 @@ type PurchaseOrderItem struct {
 	Quantity       int32           `json:"quantity"`
 	UnitPrice      decimal.Decimal `json:"unit_price"`
 	Amount         decimal.Decimal `json:"amount"`
+	TaxRate        decimal.Decimal `json:"tax_rate"`
 	PricingType    string          `json:"pricing_type"`
 	ActualQuantity decimal.Decimal `json:"actual_quantity"`
 	ActualAmount   decimal.Decimal `json:"actual_amount"`
@@ -171,10 +174,25 @@ type Payment struct {
 	Type        string          `json:"type"`
 	Amount      decimal.Decimal `json:"amount"`
 	PartnerName string          `json:"partner_name"`
+	PartnerType string          `json:"partner_type"`
+	PartnerID   *uuid.UUID      `json:"partner_id,omitempty"`
 	Notes       string          `json:"notes"`
 	PaymentDate time.Time       `json:"payment_date"`
 	CreatedAt   time.Time       `json:"created_at"`
 	CompanyID   string          `json:"company_id"`
+}
+
+// Clearing 记录每笔挂单收付款冲抵的应收/应付单据（权威核销明细）。
+type Clearing struct {
+	ID         uuid.UUID       `json:"id"`
+	PaymentID  uuid.UUID       `json:"payment_id"`
+	DocType    string          `json:"doc_type"`
+	DocID      uuid.UUID       `json:"doc_id"`
+	Amount     decimal.Decimal `json:"amount"`
+	Status     string          `json:"status"`
+	ClearedBy  string          `json:"cleared_by"`
+	ClearedAt  time.Time       `json:"cleared_at"`
+	CompanyID  string          `json:"company_id"`
 }
 
 type DashboardData struct {

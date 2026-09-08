@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,8 @@ type paymentInput struct {
 	Type          string    `json:"type"`
 	Amount        string    `json:"amount"`
 	PartnerName   string    `json:"partner_name"`
+	PartnerType   string    `json:"partner_type"`
+	PartnerID     uuid.UUID `json:"partner_id"`
 	Notes         string    `json:"notes"`
 	ReferenceType string    `json:"reference_type"`
 	ReferenceID   uuid.UUID `json:"reference_id"`
@@ -56,8 +59,8 @@ func (h *Handler) FinancePage(c *gin.Context) {
 	page := shared.GetPage(c)
 	ctx := c.Request.Context()
 
-	rows, err := h.db.QueryContext(ctx, `SELECT id, type, amount, COALESCE(partner_name,''), COALESCE(notes,''),
-		COALESCE(payment_date,'1970-01-01'), COALESCE(created_at,'1970-01-01'), COALESCE(company_id,'default')
+	rows, err := h.db.QueryContext(ctx, `SELECT id, type, amount, COALESCE(partner_name,''), COALESCE(partner_type,''), partner_id,
+		COALESCE(notes,''), COALESCE(payment_date,'1970-01-01'), COALESCE(created_at,'1970-01-01'), COALESCE(company_id,'default')
 		FROM payments ORDER BY created_at DESC LIMIT $1 OFFSET $2`, 20, (page-1)*20)
 	if err != nil {
 		shared.JSONInternal(c, err)
@@ -68,10 +71,15 @@ func (h *Handler) FinancePage(c *gin.Context) {
 	var payments []models.Payment
 	for rows.Next() {
 		var p models.Payment
-		if err := rows.Scan(&p.ID, &p.Type, &p.Amount, &p.PartnerName, &p.Notes,
-			&p.PaymentDate, &p.CreatedAt, &p.CompanyID); err != nil {
+		var pID uuid.NullUUID
+		if err := rows.Scan(&p.ID, &p.Type, &p.Amount, &p.PartnerName, &p.PartnerType, &pID,
+			&p.Notes, &p.PaymentDate, &p.CreatedAt, &p.CompanyID); err != nil {
 			shared.JSONInternal(c, err)
 			return
+		}
+		if pID.Valid {
+			id := pID.UUID
+			p.PartnerID = &id
 		}
 		payments = append(payments, p)
 	}
@@ -146,9 +154,53 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 	if input.ReferenceID != uuid.Nil {
 		refID = input.ReferenceID
 	}
-	var partnerName interface{}
-	if input.PartnerName != "" {
-		partnerName = input.PartnerName
+
+	// 解析往来方：优先从 reference 单据反查，其次用请求入参。
+	partnerType := input.PartnerType
+	partnerID := input.PartnerID
+	partnerName := input.PartnerName
+	switch input.ReferenceType {
+	case "sales_order":
+		var cid uuid.UUID
+		var cname string
+		if err := tx.QueryRowContext(ctx, `
+			SELECT s.customer_id, COALESCE(c.name,'')
+			FROM sales_orders s LEFT JOIN customers c ON c.id = s.customer_id
+			WHERE s.id = $1`, input.ReferenceID).Scan(&cid, &cname); err != nil {
+			shared.JSONBadRequest(c, "关联销售订单不存在")
+			return
+		}
+		partnerType, partnerID = "customer", cid
+		if partnerName == "" {
+			partnerName = cname
+		}
+	case "purchase_order":
+		var sid uuid.UUID
+		var sname string
+		if err := tx.QueryRowContext(ctx, `
+			SELECT p.supplier_id, COALESCE(s.name,'')
+			FROM purchase_orders p LEFT JOIN suppliers s ON s.id = p.supplier_id
+			WHERE p.id = $1`, input.ReferenceID).Scan(&sid, &sname); err != nil {
+			shared.JSONBadRequest(c, "关联采购订单不存在")
+			return
+		}
+		partnerType, partnerID = "supplier", sid
+		if partnerName == "" {
+			partnerName = sname
+		}
+	}
+
+	var pType interface{}
+	if partnerType != "" {
+		pType = partnerType
+	}
+	var pID interface{}
+	if partnerID != uuid.Nil {
+		pID = partnerID
+	}
+	var pName interface{}
+	if partnerName != "" {
+		pName = partnerName
 	}
 	var notes interface{}
 	if input.Notes != "" {
@@ -156,9 +208,9 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 	}
 
 	paymentID := uuid.New()
-	_, err = tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, reference_type, reference_id, partner_name, notes, payment_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
-		paymentID, input.Type, input.Amount, refType, refID, partnerName, notes)
+	_, err = tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, reference_type, reference_id, partner_name, partner_type, partner_id, notes, payment_date, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
+		paymentID, input.Type, input.Amount, refType, refID, pName, pType, pID, notes)
 	if err != nil {
 		shared.JSONInternal(c, err)
 		return
@@ -197,6 +249,18 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		}
 	}
 
+	// 挂单付款：同事务写入核销明细（与 paid_amount 双写一致）。
+	if input.ReferenceType == "sales_order" || input.ReferenceType == "purchase_order" {
+		clearingID := uuid.New()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO finance_clearings (id, payment_id, doc_type, doc_id, amount, status, cleared_by, cleared_at, company_id)
+			VALUES ($1, $2, $3, $4, $5, 'active', $6, NOW(), 'default')`,
+			clearingID, paymentID, input.ReferenceType, input.ReferenceID, input.Amount, ledger.Actor(c)); err != nil {
+			shared.JSONInternal(c, err)
+			return
+		}
+	}
+
 	if err := ledger.PostPayment(ctx, tx, paymentID, input.Type, input.Amount, input.PartnerName, input.Notes, input.ReferenceType, input.ReferenceID, ledger.Actor(c)); err != nil {
 		shared.JSONBadRequest(c, err.Error())
 		return
@@ -219,6 +283,104 @@ func paymentRejectedMsg(ctx context.Context, tx *sql.Tx, table string, id uuid.U
 		return "关联单据不存在"
 	}
 	return "付款金额超出单据未收金额"
+}
+
+const clearingSelect = `
+	SELECT c.id, c.payment_id, c.doc_type, c.doc_id, c.amount, c.status,
+	       c.cleared_by, c.cleared_at::text, c.company_id
+	FROM finance_clearings c`
+
+func scanClearingRows(rows *sql.Rows) ([]models.Clearing, error) {
+	var out []models.Clearing
+	for rows.Next() {
+		var cl models.Clearing
+		if err := rows.Scan(&cl.ID, &cl.PaymentID, &cl.DocType, &cl.DocID, &cl.Amount, &cl.Status,
+			&cl.ClearedBy, &cl.ClearedAt, &cl.CompanyID); err != nil {
+			return nil, err
+		}
+		out = append(out, cl)
+	}
+	return out, rows.Err()
+}
+
+// ClearingsList 核销明细列表，支持 ?doc_type=&doc_id= / ?payment_id= 筛选。
+func (h *Handler) ClearingsList(c *gin.Context) {
+	ctx := c.Request.Context()
+	where := []string{"c.company_id = 'default'"}
+	var args []interface{}
+	n := 1
+	if dt := c.Query("doc_type"); dt != "" {
+		where = append(where, fmt.Sprintf("c.doc_type = $%d", n))
+		args = append(args, dt)
+		n++
+	}
+	if did := c.Query("doc_id"); did != "" {
+		if id, err := uuid.Parse(did); err == nil {
+			where = append(where, fmt.Sprintf("c.doc_id = $%d", n))
+			args = append(args, id)
+			n++
+		}
+	}
+	if pid := c.Query("payment_id"); pid != "" {
+		if id, err := uuid.Parse(pid); err == nil {
+			where = append(where, fmt.Sprintf("c.payment_id = $%d", n))
+			args = append(args, id)
+		}
+	}
+	rows, err := h.db.QueryContext(ctx, clearingSelect+` WHERE `+strings.Join(where, " AND ")+` ORDER BY c.cleared_at DESC`, args...)
+	if err != nil {
+		shared.JSONInternal(c, err)
+		return
+	}
+	defer rows.Close()
+	items, err := scanClearingRows(rows)
+	if err != nil {
+		shared.JSONInternal(c, err)
+		return
+	}
+	shared.JSONOK(c, gin.H{"items": shared.EmptySlice(items)})
+}
+
+// PaymentDetail 返回付款及其核销明细。
+func (h *Handler) PaymentDetail(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		shared.JSONBadRequest(c, "无效ID")
+		return
+	}
+	ctx := c.Request.Context()
+	var p models.Payment
+	var pID uuid.NullUUID
+	err = h.db.QueryRowContext(ctx, `
+		SELECT id, type, amount, COALESCE(partner_name,''), COALESCE(partner_type,''), partner_id,
+		       COALESCE(notes,''), COALESCE(payment_date,'1970-01-01'), COALESCE(created_at,'1970-01-01'), COALESCE(company_id,'default')
+		FROM payments WHERE id = $1`, id).Scan(&p.ID, &p.Type, &p.Amount, &p.PartnerName, &p.PartnerType, &pID,
+		&p.Notes, &p.PaymentDate, &p.CreatedAt, &p.CompanyID)
+	if err == sql.ErrNoRows {
+		shared.JSONNotFound(c, "付款不存在")
+		return
+	}
+	if err != nil {
+		shared.JSONInternal(c, err)
+		return
+	}
+	if pID.Valid {
+		v := pID.UUID
+		p.PartnerID = &v
+	}
+
+	rows, err := h.db.QueryContext(ctx, clearingSelect+` WHERE c.payment_id = $1 ORDER BY c.cleared_at DESC`, id)
+	if err != nil {
+		shared.JSONInternal(c, err)
+		return
+	}
+	defer rows.Close()
+	clearings, err := scanClearingRows(rows)
+	if err != nil {
+		shared.JSONInternal(c, err)
+		return
+	}
+	shared.JSONOK(c, gin.H{"payment": p, "clearings": shared.EmptySlice(clearings)})
 }
 
 func (h *Handler) CashflowAPI(c *gin.Context) {

@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- S 航迹：开放的航线即字母 S；终点是一颗星 -->
-  <path d="M368 150 C368 96 312 72 256 72 C176 72 142 128 142 182 C142 262 370 244 370 332 C370 396 310 440 244 440 C196 440 154 418 142 376"
-        fill="none" stroke="#1D4ED8" stroke-width="62" stroke-linecap="round"/>
-  <path d="M398 84 L406 108 L430 116 L406 124 L398 148 L390 124 L366 116 L390 108 Z" fill="#06B6D4"/>
-  <circle cx="398" cy="116" r="7" fill="#0B2140"/>
-</svg>

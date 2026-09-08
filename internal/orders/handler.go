@@ -13,6 +13,7 @@ import (
 	"github.com/nphq/starocean/internal/ledger"
 	"github.com/nphq/starocean/internal/models"
 	"github.com/nphq/starocean/internal/shared"
+	"github.com/shopspring/decimal"
 )
 
 type Handler struct {
@@ -27,6 +28,7 @@ type orderItemInput struct {
 	ProductID uuid.UUID `json:"product_id"`
 	Quantity  int32     `json:"quantity"`
 	UnitPrice string    `json:"unit_price"`
+	TaxRate   string    `json:"tax_rate"`
 }
 
 type salesCreateRequest struct {
@@ -232,7 +234,7 @@ func (h *Handler) SalesDetailPage(c *gin.Context) {
 		SELECT soi.id, COALESCE(soi.order_id, gen_random_uuid()),
 		       COALESCE(soi.product_id, gen_random_uuid()),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
-		       soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0)
+		       soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0), COALESCE(soi.tax_rate, 0)
 		FROM sales_order_items soi
 		LEFT JOIN products p ON soi.product_id = p.id
 		WHERE soi.order_id = $1`, id)
@@ -246,14 +248,15 @@ func (h *Handler) SalesDetailPage(c *gin.Context) {
 	for itemRows.Next() {
 		var it models.SalesOrderItem
 		if err := itemRows.Scan(&it.ID, &it.OrderID, &it.ProductID,
-			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount); err != nil {
+			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount, &it.TaxRate); err != nil {
 			shared.JSONInternal(c, err)
 			return
 		}
 		items = append(items, it)
 	}
 
-	shared.JSONOK(c, gin.H{"order": order, "items": shared.EmptySlice(items)})
+	netAmt, taxAmt := orderLineTaxSum(items)
+	shared.JSONOK(c, gin.H{"order": order, "items": shared.EmptySlice(items), "net_amount": netAmt, "tax_amount": taxAmt})
 }
 
 func (h *Handler) SalesConfirm(c *gin.Context) {
@@ -508,7 +511,7 @@ func (h *Handler) PurchaseDetailPage(c *gin.Context) {
 		SELECT poi.id, COALESCE(poi.order_id, gen_random_uuid()),
 		       COALESCE(poi.product_id, gen_random_uuid()),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
-		       poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0)
+		       poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0), COALESCE(poi.tax_rate, 0)
 		FROM purchase_order_items poi
 		LEFT JOIN products p ON poi.product_id = p.id
 		WHERE poi.order_id = $1`, id)
@@ -522,14 +525,15 @@ func (h *Handler) PurchaseDetailPage(c *gin.Context) {
 	for itemRows.Next() {
 		var it models.PurchaseOrderItem
 		if err := itemRows.Scan(&it.ID, &it.OrderID, &it.ProductID,
-			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount); err != nil {
+			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount, &it.TaxRate); err != nil {
 			shared.JSONInternal(c, err)
 			return
 		}
 		items = append(items, it)
 	}
 
-	shared.JSONOK(c, gin.H{"order": order, "items": shared.EmptySlice(items)})
+	netAmt, taxAmt := purchaseLineTaxSum(items)
+	shared.JSONOK(c, gin.H{"order": order, "items": shared.EmptySlice(items), "net_amount": netAmt, "tax_amount": taxAmt})
 }
 
 func (h *Handler) PurchaseConfirm(c *gin.Context) {
@@ -664,4 +668,38 @@ func (h *Handler) PurchaseSearchAPI(c *gin.Context) {
 		orders = append(orders, o)
 	}
 	shared.JSONOK(c, shared.EmptySlice(orders))
+}
+
+// splitLineTax 差额法：net = round(amount/(1+rate/100), 2)，tax = amount - net，恒有 net+tax=amount。
+func splitLineTax(amount, rate decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
+	if amount.IsZero() {
+		return decimal.Zero, decimal.Zero
+	}
+	if rate.IsZero() {
+		return amount.Round(2), decimal.Zero
+	}
+	denom := decimal.NewFromInt(100).Add(rate)
+	net := amount.Mul(decimal.NewFromInt(100)).Div(denom).Round(2)
+	tax := amount.Sub(net).Round(2)
+	return net, tax
+}
+
+func orderLineTaxSum(items []models.SalesOrderItem) (decimal.Decimal, decimal.Decimal) {
+	var net, tax decimal.Decimal
+	for _, it := range items {
+		n, t := splitLineTax(it.Amount, it.TaxRate)
+		net = net.Add(n)
+		tax = tax.Add(t)
+	}
+	return net, tax
+}
+
+func purchaseLineTaxSum(items []models.PurchaseOrderItem) (decimal.Decimal, decimal.Decimal) {
+	var net, tax decimal.Decimal
+	for _, it := range items {
+		n, t := splitLineTax(it.Amount, it.TaxRate)
+		net = net.Add(n)
+		tax = tax.Add(t)
+	}
+	return net, tax
 }

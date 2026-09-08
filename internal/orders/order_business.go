@@ -27,6 +27,7 @@ type SalesOrderItemInput struct {
 	ProductID uuid.UUID
 	Quantity  int32
 	UnitPrice string
+	TaxRate   string
 }
 
 type PurchaseOrderInput struct {
@@ -42,6 +43,23 @@ type PurchaseOrderItemInput struct {
 	ProductID uuid.UUID
 	Quantity  int32
 	UnitPrice string
+	TaxRate   string
+}
+
+// resolveTaxRate 解析订单行税率：入参非空用之，否则取产品默认税率（0=不计税）。
+func resolveTaxRate(ctx context.Context, tx *sql.Tx, productID uuid.UUID, input string) (decimal.Decimal, error) {
+	if input != "" {
+		v, err := decimal.NewFromString(input)
+		if err != nil {
+			return decimal.Zero, fmt.Errorf("税率无效: %s", input)
+		}
+		return v, nil
+	}
+	var dtr decimal.Decimal
+	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(default_tax_rate,0) FROM products WHERE id=$1`, productID).Scan(&dtr); err != nil {
+		return decimal.Zero, err
+	}
+	return dtr, nil
 }
 
 func generateOrderNo(ctx context.Context, tx *sql.Tx, prefix string) (string, error) {
@@ -80,9 +98,14 @@ func CreateSalesOrder(ctx context.Context, tx *sql.Tx, in SalesOrderInput) (orde
 	}
 
 	for _, item := range in.Items {
+		var taxRate decimal.Decimal
+		taxRate, err = resolveTaxRate(ctx, tx, item.ProductID, item.TaxRate)
+		if err != nil {
+			return
+		}
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO sales_order_items (id, order_id, product_id, quantity, unit_price)
-			VALUES ($1, $2, $3, $4, $5)`, uuid.New(), orderID, item.ProductID, item.Quantity, item.UnitPrice)
+			INSERT INTO sales_order_items (id, order_id, product_id, quantity, unit_price, tax_rate)
+			VALUES ($1, $2, $3, $4, $5, $6)`, uuid.New(), orderID, item.ProductID, item.Quantity, item.UnitPrice, taxRate)
 		if err != nil {
 			return
 		}
@@ -164,7 +187,7 @@ func getSalesOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) ([]m
 		SELECT soi.id, COALESCE(soi.order_id, gen_random_uuid()),
 		       COALESCE(soi.product_id, gen_random_uuid()),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
-		       soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0)
+		       soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0), COALESCE(soi.tax_rate, 0)
 		FROM sales_order_items soi
 		LEFT JOIN products p ON soi.product_id = p.id
 		WHERE soi.order_id = $1`, orderID)
@@ -177,7 +200,7 @@ func getSalesOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) ([]m
 	for rows.Next() {
 		var it models.SalesOrderItem
 		if err := rows.Scan(&it.ID, &it.OrderID, &it.ProductID,
-			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount); err != nil {
+			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount, &it.TaxRate); err != nil {
 			return nil, err
 		}
 		items = append(items, it)
@@ -420,7 +443,7 @@ func getPurchaseOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) (
 		SELECT poi.id, COALESCE(poi.order_id, gen_random_uuid()),
 		       COALESCE(poi.product_id, gen_random_uuid()),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
-		       poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0)
+		       poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0), COALESCE(poi.tax_rate, 0)
 		FROM purchase_order_items poi
 		LEFT JOIN products p ON poi.product_id = p.id
 		WHERE poi.order_id = $1`, orderID)
@@ -433,7 +456,7 @@ func getPurchaseOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) (
 	for rows.Next() {
 		var it models.PurchaseOrderItem
 		if err := rows.Scan(&it.ID, &it.OrderID, &it.ProductID,
-			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount); err != nil {
+			&it.ProductName, &it.ProductCode, &it.Quantity, &it.UnitPrice, &it.Amount, &it.TaxRate); err != nil {
 			return nil, err
 		}
 		items = append(items, it)
@@ -462,9 +485,14 @@ func CreatePurchaseOrder(ctx context.Context, tx *sql.Tx, in PurchaseOrderInput)
 	}
 
 	for _, item := range in.Items {
+		var taxRate decimal.Decimal
+		taxRate, err = resolveTaxRate(ctx, tx, item.ProductID, item.TaxRate)
+		if err != nil {
+			return
+		}
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO purchase_order_items (id, order_id, product_id, quantity, unit_price)
-			VALUES ($1, $2, $3, $4, $5)`, uuid.New(), orderID, item.ProductID, item.Quantity, item.UnitPrice)
+			INSERT INTO purchase_order_items (id, order_id, product_id, quantity, unit_price, tax_rate)
+			VALUES ($1, $2, $3, $4, $5, $6)`, uuid.New(), orderID, item.ProductID, item.Quantity, item.UnitPrice, taxRate)
 		if err != nil {
 			return
 		}

@@ -33,6 +33,9 @@ type Settings struct {
 	SurplusAccount   string `json:"surplus_account"`
 	AutoPost         bool   `json:"auto_post"`
 	CostingMethod    string `json:"costing_method"`
+	RequireReview    bool   `json:"require_review"`
+	OutputTaxAccount string `json:"output_tax_account"`
+	InputTaxAccount  string `json:"input_tax_account"`
 }
 
 type Account struct {
@@ -89,6 +92,9 @@ type Voucher struct {
 	PostedBy        string          `json:"posted_by"`
 	ReversesID      *uuid.UUID      `json:"reverses_id,omitempty"`
 	ReversedByID    *uuid.UUID      `json:"reversed_by_id,omitempty"`
+	ReviewedBy      string          `json:"reviewed_by"`
+	ReviewedAt      *time.Time      `json:"reviewed_at,omitempty"`
+	ReviewNote      string          `json:"review_note"`
 	DebitTotal      decimal.Decimal `json:"debit_total"`
 	CreditTotal     decimal.Decimal `json:"credit_total"`
 	CreatedAt       time.Time       `json:"created_at"`
@@ -135,16 +141,23 @@ func loadSettings(ctx context.Context, db DBTX) (Settings, error) {
 	err := db.QueryRowContext(ctx, `
 		SELECT cash_account, bank_account, ar_account, ap_account, inventory_account,
 		       revenue_account, cogs_account, opex_account, payroll_account,
-		       income_summary, retained_earnings, surplus_account, auto_post, costing_method
+		       income_summary, retained_earnings, surplus_account, auto_post, costing_method,
+		       require_review, output_tax_account, input_tax_account
 		FROM gl_settings WHERE company_id = $1`, companyID).Scan(
 		&s.CashAccount, &s.BankAccount, &s.ARAccount, &s.APAccount, &s.InventoryAccount,
 		&s.RevenueAccount, &s.COGSAccount, &s.OpexAccount, &s.PayrollAccount,
 		&s.IncomeSummary, &s.RetainedEarnings, &s.SurplusAccount, &s.AutoPost, &s.CostingMethod,
+		&s.RequireReview, &s.OutputTaxAccount, &s.InputTaxAccount,
 	)
 	if err != nil {
 		return s, fmt.Errorf("读取总账设置: %w", err)
 	}
 	return s, nil
+}
+
+// GetSettings 导出总账设置（供 web 层渲染开关等）。
+func GetSettings(ctx context.Context, db DBTX) (Settings, error) {
+	return loadSettings(ctx, db)
 }
 
 func parseDate(s string) (time.Time, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -38,10 +39,11 @@ func TestMigrateSQLite(t *testing.T) {
 		dsn = os.Getenv("SQLITE_TEST_DSN")
 	}
 	if dsn == "" {
-		t.Skip("STAROCEAN_TEST_DSN/SQLITE_TEST_DSN not set")
+		// 缺省用临时 SQLite 库直接跑：无 DSN 时 Skip 会造成假绿
+		dsn = "sqlite:" + filepath.Join(t.TempDir(), "starocean-test.db")
 	}
 	if !strings.HasPrefix(dsn, "sqlite:") {
-		t.Skip("not a sqlite DSN")
+		t.Skip("not a sqlite DSN (sqlite-only test)")
 	}
 	// go test ./... 各包并行运行，SQLite 使用独立文件避免相互冲突
 	p := strings.TrimSuffix(strings.TrimPrefix(dsn, "sqlite:"), ".db") + "_db.db"

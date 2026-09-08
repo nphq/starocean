@@ -72,16 +72,25 @@ func (h *Handler) SettingsUpdate(c *gin.Context) {
 	if !shared.BindJSON(c, &in) {
 		return
 	}
+	// 税科目缺省为常用科目，避免客户端未下发时被空白覆盖。
+	if in.OutputTaxAccount == "" {
+		in.OutputTaxAccount = "22210105"
+	}
+	if in.InputTaxAccount == "" {
+		in.InputTaxAccount = "22210101"
+	}
 	_, err := h.db.ExecContext(c.Request.Context(), `
 		UPDATE gl_settings SET
 			cash_account=$1, bank_account=$2, ar_account=$3, ap_account=$4, inventory_account=$5,
 			revenue_account=$6, cogs_account=$7, opex_account=$8, payroll_account=$9,
 			income_summary=$10, retained_earnings=$11, surplus_account=$12, auto_post=$13, costing_method=$14,
+			require_review=$15, output_tax_account=$16, input_tax_account=$17,
 			updated_at=NOW()
-		WHERE company_id=$15`,
+		WHERE company_id=$18`,
 		in.CashAccount, in.BankAccount, in.ARAccount, in.APAccount, in.InventoryAccount,
 		in.RevenueAccount, in.COGSAccount, in.OpexAccount, in.PayrollAccount,
-		in.IncomeSummary, in.RetainedEarnings, in.SurplusAccount, in.AutoPost, in.CostingMethod, companyID)
+		in.IncomeSummary, in.RetainedEarnings, in.SurplusAccount, in.AutoPost, in.CostingMethod,
+		in.RequireReview, in.OutputTaxAccount, in.InputTaxAccount, companyID)
 	if err != nil {
 		shared.JSONInternal(c, err)
 		return
@@ -256,6 +265,45 @@ func (h *Handler) VoucherPost(c *gin.Context) {
 	}
 	if !h.withTx(c, func(tx *sql.Tx) error {
 		return PostVoucher(c.Request.Context(), tx, id, Actor(c))
+	}) {
+		return
+	}
+	shared.JSONOK(c, gin.H{"ok": true})
+}
+
+func (h *Handler) VoucherReview(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		shared.JSONBadRequest(c, "无效ID")
+		return
+	}
+	var in struct {
+		Note string `json:"note"`
+	}
+	// 审核意见可选：无请求体时忽略解析错误，仍执行审核。
+	_ = c.ShouldBindJSON(&in)
+	if !h.withTx(c, func(tx *sql.Tx) error {
+		return ReviewVoucher(c.Request.Context(), tx, id, Actor(c), in.Note)
+	}) {
+		return
+	}
+	shared.JSONOK(c, gin.H{"ok": true})
+}
+
+func (h *Handler) VoucherReject(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		shared.JSONBadRequest(c, "无效ID")
+		return
+	}
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	if !shared.BindJSON(c, &in) {
+		return
+	}
+	if !h.withTx(c, func(tx *sql.Tx) error {
+		return RejectVoucher(c.Request.Context(), tx, id, in.Reason)
 	}) {
 		return
 	}

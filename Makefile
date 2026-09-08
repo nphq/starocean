@@ -55,8 +55,18 @@ dev: templ css stop
 docker:
 	docker build -t starocean .
 
+# 集成测试默认用单次运行的 SQLite 临时库（test helpers 缺库曾静默 Skip，导致假绿）；
+# 各测试包自动追加后缀（如 _ledger.db）避免并行冲突，跑完自动删除。需要跑 PG 时：
+#   make test STAROCEAN_TEST_DSN=postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable
 test:
-	go test -count=1 ./...
+	@if [ -n "$(STAROCEAN_TEST_DSN)" ]; then \
+		STAROCEAN_TEST_DSN="$(STAROCEAN_TEST_DSN)" go test -count=1 ./...; \
+	else \
+		TMP=$$(mktemp /tmp/starocean-test-XXXXXX); \
+		rm -f "$$TMP"; \
+		trap 'rm -f "$$TMP"*' EXIT INT TERM; \
+		STAROCEAN_TEST_DSN="sqlite:$$TMP.db" go test -count=1 ./...; \
+	fi
 
 # 严格 lint（发现任何问题即非零退出）。依赖 golangci-lint v2：
 #   brew install golangci-lint  或

@@ -622,15 +622,16 @@ func calculateReconciliationTotals(ctx context.Context, db *sql.DB, partnerType 
 			partnerID, start, end).Scan(&orderTotal)
 		var partnerName string
 		_ = db.QueryRowContext(ctx, "SELECT COALESCE(name,'') FROM customers WHERE id=$1", partnerID).Scan(&partnerName)
-		_ = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)),0) FROM payments WHERE payment_date >= $1 AND payment_date <= $2 AND partner_name = $3`,
-			start, end, partnerName).Scan(&paymentTotal)
+		// 按 partner_id 精确关联；历史无 partner_id 的付款降级按名匹配。
+		_ = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)),0) FROM payments WHERE payment_date >= $1 AND payment_date <= $2 AND ((partner_id = $3 AND partner_type = $4) OR (partner_id IS NULL AND partner_name = $5))`,
+			start, end, partnerID, partnerType, partnerName).Scan(&paymentTotal)
 	} else {
 		_ = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(total_amount),0) FROM purchase_orders WHERE supplier_id=$1 AND order_date >= $2 AND order_date <= $3 AND status != 'cancelled'`,
 			partnerID, start, end).Scan(&orderTotal)
 		var partnerName string
 		_ = db.QueryRowContext(ctx, "SELECT COALESCE(name,'') FROM suppliers WHERE id=$1", partnerID).Scan(&partnerName)
-		_ = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)),0) FROM payments WHERE payment_date >= $1 AND payment_date <= $2 AND partner_name = $3`,
-			start, end, partnerName).Scan(&paymentTotal)
+		_ = db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)),0) FROM payments WHERE payment_date >= $1 AND payment_date <= $2 AND ((partner_id = $3 AND partner_type = $4) OR (partner_id IS NULL AND partner_name = $5))`,
+			start, end, partnerID, partnerType, partnerName).Scan(&paymentTotal)
 	}
 
 	return orderTotal, paymentTotal
@@ -680,8 +681,11 @@ func insertReconciliationItems(ctx context.Context, db *sql.DB, rID uuid.UUID, p
 		_ = db.QueryRowContext(ctx, "SELECT COALESCE(name,'') FROM suppliers WHERE id=$1", partnerID).Scan(&partnerName)
 	}
 
-	paymentRows, err := db.QueryContext(ctx, `SELECT COALESCE(notes,''), amount, payment_date FROM payments WHERE payment_date >= $1 AND payment_date <= $2 AND partner_name = $3 ORDER BY payment_date`,
-		start, end, partnerName)
+	paymentRows, err := db.QueryContext(ctx, `SELECT COALESCE(notes,''), amount, payment_date FROM payments
+		WHERE payment_date >= $1 AND payment_date <= $2
+		  AND ((partner_id = $3 AND partner_type = $4) OR (partner_id IS NULL AND partner_name = $5))
+		ORDER BY payment_date`,
+		start, end, partnerID, partnerType, partnerName)
 	if err == nil {
 		defer paymentRows.Close()
 		for paymentRows.Next() {

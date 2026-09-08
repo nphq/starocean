@@ -20,7 +20,7 @@ StarOcean 专为中小企业（SME）设计：一个二进制文件 + 一个 SQL
 - **💼 进销存闭环** — 客户/供应商档案、销售订单（草稿→确认扣库存→发货→开票）、采购订单（草稿→确认→收货加库存→付款）、实时库存流水、安全库存预警。
 - **💰 往来与总账** — 收付款登记、应收应付统计、费用报销流、发票录入与作废、对账确认、会计科目/凭证/试算/三大报表、期间结账。
 - **🔌 扩展约定** — 核心零臃肿，通过 Event Hooks 事件约定 + `properties` 扩展字段承接定制，无解释器、无动态加载（见 `docs/PLUGINS.md`）。
-- **🌓 现代化 UI/UX** — 服务端渲染（templ + htmx 2.x + Tailwind CSS 4），无前端构建链，原生深色模式，列表搜索/分页局部刷新。
+- **🌓 现代化 UI/UX** — 服务端渲染（templ + Tailwind CSS 4），无前端构建链，原生深色模式，列表搜索/分页局部刷新。
 
 > 明确未做：生产制造（BOM/工单/MRP）、多仓库/库位、采购退货、发票三单匹配、
 > 成本中心、库存盘点、多币种。详见 `docs/DESIGN.md §0.6`。
@@ -32,8 +32,8 @@ StarOcean 专为中小企业（SME）设计：一个二进制文件 + 一个 SQL
 | 后端 | Go 1.26 + Gin（页面 HTML + JSON API 并存） |
 | 数据库 | **SQLite（单机默认，CGO-free）** / PostgreSQL 16（可选） |
 | SQL | 手写参数化查询（database/sql + pgx / modernc-sqlite，无 ORM） |
-| 前端 | templ 服务端模板 + htmx 2.x（vendored） + Tailwind CSS 4 |
-| JS 运行时 | 无（htmx + 少量内联脚本，深色模式/确认框） |
+| 前端 | templ 服务端模板 + Tailwind CSS 4 |
+| JS 运行时 | 无框架，仅少量内联脚本（深色模式/确认框） |
 | 迁移 | 内嵌迁移 + 自动 DDL 翻译（SQLite）/ golang-migrate（PostgreSQL） |
 
 ## 快速开始
@@ -141,23 +141,6 @@ docker run -d --name starocean-db \
 - 应收应付总览
 - 收付款登记
 - 现金流一览（本月收入/支出/净额）
-
-### 页面与 API
-
-业务页面为服务端渲染（登录后直接访问，如 `/sales`、`/products`、`/ledger`）。
-JSON 接口保留（均需登录 Cookie，前缀 `/api`，集成测试覆盖）。常用接口：
-
-| 接口 | 说明 |
-|---|---|
-| `POST /api/login` | JSON 登录 `{username,password}` |
-| `GET /api/me` | 当前用户 |
-| `GET /api/search?q=` | 全局搜索 |
-| `GET /api/products` | 商品列表 |
-| `GET /api/products/search?q=` | 商品搜索 |
-| `GET /api/sales/export` | 销售订单导出 Excel |
-| `GET /api/finance/cashflow` | 现金流数据 |
-
-打印页仍为服务端 HTML：`/sales/:id/print` 等。
 
 ## 开发
 

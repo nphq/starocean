@@ -51,3 +51,6 @@ bin/
 .antigravitycli/
 .claude/
 .lefthook-local.yml
+
+# Docs are maintained locally / outside version control
+docs/

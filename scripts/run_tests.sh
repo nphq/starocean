@@ -42,7 +42,7 @@ go vet ./...
 echo -e "${BLUE}==> go test -race -count=1 ./...${NC}"
 echo -e "${YELLOW}    DSN: $TEST_DSN ${NC}"
 if go test -race -count=1 ./...; then
-    echo -e "${GREEN}    Go 测试通过（集成测试依赖 STAROCEAN_TEST_DSN；性能基线测试需 starocean_perf 库，缺失时自动跳过）${NC}"
+    echo -e "${GREEN}    Go 测试通过（集成测试缺库即失败，杜绝静默跳过假绿；仅性能基线测试需 starocean_perf 库，缺失时自动跳过）${NC}"
 else
     echo -e "${RED}    Go 测试失败${NC}"
     exit 1

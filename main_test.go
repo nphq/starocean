@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -27,21 +28,25 @@ import (
 
 const perfDBURL = "postgres://starocean:starocean@localhost:5432/starocean_perf?sslmode=disable"
 
-// testDSN 测试数据库连接串: 默认为本地 PostgreSQL,
-// 可通过 STAROCEAN_TEST_DSN=sqlite:test.db 切换到单机 SQLite 运行整套集成测试。
-func testDSN() string {
+// testDSN 测试数据库连接串: 缺省使用 t.TempDir() 下的 SQLite 临时库
+// （零依赖，裸 `go test ./...` 也能真正执行，避免无库静默 Skip 造成假绿），
+// 可通过 STAROCEAN_TEST_DSN=postgres://... 切换到 PostgreSQL。
+func testDSN(t *testing.T) string {
+	t.Helper()
 	if v := os.Getenv("STAROCEAN_TEST_DSN"); v != "" {
 		return v
 	}
-	return "postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable"
+	return "sqlite:" + filepath.Join(t.TempDir(), "starocean-test.db")
 }
 
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	dbURL := testDSN()
+	dbURL := testDSN(t)
 	database, err := db.Connect(dbURL)
 	if err != nil {
-		t.Skipf("no test database available: %v", err)
+		// 显式指定的 DSN 连不上属于配置错误，必须失败而非 Skip；
+		// 缺省 SQLite 临时库本地一定可用，失败同样直接报错。
+		t.Fatalf("test database unavailable (DSN=%q): %v", dbURL, err)
 	}
 	if err := db.Migrate(database, dbURL, migrationsFS); err != nil {
 		t.Fatalf("migrate: %v", err)
@@ -51,6 +56,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 	database.Exec(`DELETE FROM gl_account_balances`)
 	database.Exec(`DELETE FROM gl_voucher_seq`)
 	database.Exec(`UPDATE gl_periods SET status='open', closed_at=NULL, closed_by=''`)
+	database.Exec(`DELETE FROM finance_clearings`)
+	database.Exec(`DELETE FROM payments`)
 	database.Exec(`DELETE FROM sales_order_items`)
 	database.Exec(`DELETE FROM purchase_order_items`)
 	database.Exec(`DELETE FROM inventory_movements`)
@@ -328,6 +335,79 @@ func TestOrderConfirmCancelStockReversal(t *testing.T) {
 	database.QueryRow(`SELECT COUNT(*) FROM inventory_movements WHERE product_id = $1 AND type = 'in' AND reference_type = 'sales_order_cancel'`, productID).Scan(&movementCount)
 	if movementCount == 0 {
 		t.Error("no in movement recorded after cancel")
+	}
+}
+
+func TestPaymentCreatesClearingAndBackfillsPartner(t *testing.T) {
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+
+	var customerID string
+	database.QueryRow(`SELECT id FROM customers WHERE code = 'T1'`).Scan(&customerID)
+
+	orderID := createSalesOrder(t, r, sess, database, 3) // 3 * 10.00 = 30.00
+
+	// 挂单收款：reference 指向订单
+	req := authJSON("POST", "/api/finance/payments", map[string]any{
+		"type":           "收入",
+		"amount":         "30.00",
+		"partner_name":   "Test Co",
+		"reference_type": "sales_order",
+		"reference_id":   orderID,
+	}, sess)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("payment: expected 201, got %d body=%s", w.Code, truncate(w.Body.String(), 200))
+	}
+
+	// 核销明细在同一事务生成
+	var clearingCount int
+	database.QueryRow(`SELECT COUNT(*) FROM finance_clearings WHERE doc_id = $1 AND doc_type = 'sales_order'`, orderID).Scan(&clearingCount)
+	if clearingCount != 1 {
+		t.Fatalf("expected 1 clearing row, got %d", clearingCount)
+	}
+
+	// 付款伴侣外键回填
+	var partnerType, partnerID string
+	var paymentID string
+	database.QueryRow(`SELECT id, partner_type, partner_id FROM payments WHERE reference_id = $1 AND reference_type = 'sales_order'`, orderID).Scan(&paymentID, &partnerType, &partnerID)
+	if partnerType != "customer" || partnerID != customerID {
+		t.Fatalf("expected partner customer/%s, got %s/%s", customerID, partnerType, partnerID)
+	}
+
+	// paid_amount 增量（数字语义不变）
+	var paid float64
+	database.QueryRow(`SELECT COALESCE(paid_amount,0) FROM sales_orders WHERE id = $1`, orderID).Scan(&paid)
+	if paid != 30.0 {
+		t.Fatalf("expected paid_amount 30.00, got %v", paid)
+	}
+
+	// 明细查询：/finance/clearings
+	req2 := authJSON("GET", "/api/finance/clearings?doc_id="+orderID, nil, sess)
+	w2 := httptest.NewRecorder()
+	r.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("clearings: expected 200, got %d", w2.Code)
+	}
+	body := jsonBody(t, w2)
+	items, _ := body["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("expected 1 clearing item, got %d", len(items))
+	}
+
+	// 付款详情含核销
+	req3 := authJSON("GET", "/api/finance/payments/"+paymentID, nil, sess)
+	w3 := httptest.NewRecorder()
+	r.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("payment detail: expected 200, got %d", w3.Code)
+	}
+	body3 := jsonBody(t, w3)
+	cl, _ := body3["clearings"].([]any)
+	if len(cl) != 1 {
+		t.Fatalf("payment detail: expected 1 clearing, got %d", len(cl))
 	}
 }
 

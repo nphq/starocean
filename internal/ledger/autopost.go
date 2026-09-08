@@ -252,6 +252,15 @@ func postSalesConfirm(ctx context.Context, db DBTX, settings Settings, id uuid.U
 	if err != nil {
 		return err
 	}
+	// 价税分离：逐行按“差额法”拆分净额/税额，恒有 net+tax=amount，保证借贷平衡。
+	revenue, outTax, err := splitOrderTax(ctx, db, "sales_order_items", id)
+	if err != nil {
+		return err
+	}
+	// 无明细行（如手工/种子订单）时退化为全额不含税，保持旧行为。
+	if revenue.IsZero() && outTax.IsZero() && amt.GreaterThan(decimal.Zero) {
+		revenue = amt
+	}
 	cogs, err := salesCOGS(ctx, db, id)
 	if err != nil {
 		return err
@@ -262,8 +271,13 @@ func postSalesConfirm(ctx context.Context, db DBTX, settings Settings, id uuid.U
 	if amt.GreaterThan(decimal.Zero) {
 		lines = append(lines,
 			LineInput{AccountCode: settings.ARAccount, Summary: summary, Debit: amt.StringFixed(2), PartnerType: "customer", PartnerID: cid, PartnerName: customerName},
-			LineInput{AccountCode: settings.RevenueAccount, Summary: summary, Credit: amt.StringFixed(2), PartnerType: "customer", PartnerID: cid, PartnerName: customerName},
+			LineInput{AccountCode: settings.RevenueAccount, Summary: summary, Credit: revenue.StringFixed(2), PartnerType: "customer", PartnerID: cid, PartnerName: customerName},
 		)
+		if outTax.GreaterThan(decimal.Zero) {
+			lines = append(lines,
+				LineInput{AccountCode: settings.OutputTaxAccount, Summary: summary + " 销项税", Credit: outTax.StringFixed(2), PartnerType: "customer", PartnerID: cid, PartnerName: customerName},
+			)
+		}
 	}
 	if cogs.GreaterThan(decimal.Zero) {
 		lines = append(lines,
@@ -283,6 +297,42 @@ func postSalesConfirm(ctx context.Context, db DBTX, settings Settings, id uuid.U
 		Lines:       lines,
 	}, preparedBy)
 	return err
+}
+
+// splitOrderTax 逐行按差额法拆分含税额：net = round(amount/(1+rate/100), 2)，tax = amount - net。
+// 返回净额合计、税额合计。rate 全 0 时退化为 net=amount、tax=0。
+func splitOrderTax(ctx context.Context, db DBTX, itemTable string, orderID uuid.UUID) (decimal.Decimal, decimal.Decimal, error) {
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(
+		`SELECT COALESCE(amount,0), COALESCE(tax_rate,0) FROM %s WHERE order_id=$1`, itemTable), orderID)
+	if err != nil {
+		return decimal.Zero, decimal.Zero, err
+	}
+	defer rows.Close()
+	net, tax := decimal.Zero, decimal.Zero
+	for rows.Next() {
+		var amt, rate decimal.Decimal
+		if err := rows.Scan(&amt, &rate); err != nil {
+			return decimal.Zero, decimal.Zero, err
+		}
+		n, t := splitTax(amt, rate)
+		net = net.Add(n)
+		tax = tax.Add(t)
+	}
+	return money(net), money(tax), rows.Err()
+}
+
+// splitTax 单行差额法拆分。rate 为百分比（13.00 = 13%）。
+func splitTax(amount, rate decimal.Decimal) (decimal.Decimal, decimal.Decimal) {
+	if amount.IsZero() {
+		return decimal.Zero, decimal.Zero
+	}
+	if rate.IsZero() {
+		return money(amount), decimal.Zero
+	}
+	denom := decimal.NewFromInt(100).Add(rate)
+	net := money(amount.Mul(decimal.NewFromInt(100)).Div(denom))
+	tax := money(amount.Sub(net))
+	return net, tax
 }
 
 func salesCOGS(ctx context.Context, db DBTX, orderID uuid.UUID) (decimal.Decimal, error) {
@@ -332,25 +382,38 @@ func postPurchaseReceive(ctx context.Context, db DBTX, settings Settings, id uui
 	if amt.LessThanOrEqual(decimal.Zero) {
 		return nil
 	}
+	invAmt, inTax, err := splitOrderTax(ctx, db, "purchase_order_items", id)
+	if err != nil {
+		return err
+	}
+	// 无明细行（如手工/种子订单）时退化为全额不计税，保持旧行为。
+	if invAmt.IsZero() && inTax.IsZero() {
+		invAmt = amt
+	}
 	summary := "采购入库 " + orderNo + " " + supplierName
 	sid := supplierID.String()
+	lines := []LineInput{
+		{AccountCode: settings.InventoryAccount, Summary: summary, Debit: invAmt.StringFixed(2), PartnerType: "supplier", PartnerID: sid, PartnerName: supplierName},
+		{AccountCode: settings.APAccount, Summary: summary, Credit: amt.StringFixed(2), PartnerType: "supplier", PartnerID: sid, PartnerName: supplierName},
+	}
+	if inTax.GreaterThan(decimal.Zero) {
+		lines = append(lines, LineInput{AccountCode: settings.InputTaxAccount, Summary: summary + " 进项税", Debit: inTax.StringFixed(2), PartnerType: "supplier", PartnerID: sid, PartnerName: supplierName})
+	}
 	_, err = createAndPost(ctx, db, VoucherInput{
 		Word:        "记",
 		VoucherDate: todayDate(),
 		Summary:     summary,
 		SourceType:  "purchase_order",
 		SourceID:    id.String(),
-		Lines: []LineInput{
-			{AccountCode: settings.InventoryAccount, Summary: summary, Debit: amt.StringFixed(2), PartnerType: "supplier", PartnerID: sid, PartnerName: supplierName},
-			{AccountCode: settings.APAccount, Summary: summary, Credit: amt.StringFixed(2), PartnerType: "supplier", PartnerID: sid, PartnerName: supplierName},
-		},
+		Lines:       lines,
 	}, preparedBy)
 	return err
 }
 
 func updateMovingAverage(ctx context.Context, db DBTX, purchaseID uuid.UUID) error {
 	rows, err := db.QueryContext(ctx, `
-		SELECT poi.product_id, poi.quantity, poi.unit_price, COALESCE(p.current_stock,0), COALESCE(p.cost_price,0)
+		SELECT poi.product_id, poi.quantity, COALESCE(poi.amount,0), COALESCE(poi.tax_rate,0),
+		       COALESCE(p.current_stock,0), COALESCE(p.cost_price,0)
 		FROM purchase_order_items poi
 		JOIN products p ON p.id = poi.product_id
 		WHERE poi.order_id=$1`, purchaseID)
@@ -358,33 +421,44 @@ func updateMovingAverage(ctx context.Context, db DBTX, purchaseID uuid.UUID) err
 		return err
 	}
 	defer rows.Close()
-	type row struct {
-		id             uuid.UUID
-		qty, stock     int32
-		price, oldCost decimal.Decimal
+	type agg struct {
+		qty     int32
+		stock   int32
+		net     decimal.Decimal
+		oldCost decimal.Decimal
 	}
-	var items []row
+	byProd := map[uuid.UUID]*agg{}
 	for rows.Next() {
-		var r row
-		if err := rows.Scan(&r.id, &r.qty, &r.price, &r.stock, &r.oldCost); err != nil {
+		var pid uuid.UUID
+		var qty int32
+		var gross, rate, stock, oldCost decimal.Decimal
+		if err := rows.Scan(&pid, &qty, &gross, &rate, &stock, &oldCost); err != nil {
 			return err
 		}
-		items = append(items, r)
+		a := byProd[pid]
+		if a == nil {
+			a = &agg{stock: int32(stock.IntPart()), oldCost: oldCost}
+			byProd[pid] = a
+		}
+		a.qty += qty
+		net, _ := splitTax(gross, rate)
+		a.net = a.net.Add(net)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, r := range items {
-		oldQty := decimal.NewFromInt(int64(r.stock - r.qty))
+	for pid, a := range byProd {
+		oldQty := decimal.NewFromInt(int64(a.stock - a.qty))
 		if oldQty.LessThan(decimal.Zero) {
 			oldQty = decimal.Zero
 		}
-		newQty := decimal.NewFromInt(int64(r.stock))
+		newQty := decimal.NewFromInt(int64(a.stock))
 		if newQty.LessThanOrEqual(decimal.Zero) {
 			continue
 		}
-		newCost := oldQty.Mul(r.oldCost).Add(decimal.NewFromInt(int64(r.qty)).Mul(r.price)).Div(newQty)
-		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=NOW() WHERE id=$1`, r.id, money(newCost)); err != nil {
+		// 用净额(不含可抵扣进项)入成本；与 revertMovingAverage 对称。
+		newCost := oldQty.Mul(a.oldCost).Add(a.net).Div(newQty)
+		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=NOW() WHERE id=$1`, pid, money(newCost)); err != nil {
 			return err
 		}
 	}
@@ -393,43 +467,55 @@ func updateMovingAverage(ctx context.Context, db DBTX, purchaseID uuid.UUID) err
 
 func revertMovingAverage(ctx context.Context, db DBTX, purchaseID uuid.UUID) error {
 	rows, err := db.QueryContext(ctx, `
-		SELECT poi.product_id, SUM(poi.quantity), SUM(poi.quantity * poi.unit_price),
-		       COALESCE(MAX(p.current_stock),0), COALESCE(MAX(p.cost_price),0)
+		SELECT poi.product_id, poi.quantity, COALESCE(poi.amount,0), COALESCE(poi.tax_rate,0),
+		       COALESCE(p.current_stock,0), COALESCE(p.cost_price,0)
 		FROM purchase_order_items poi
 		JOIN products p ON p.id = poi.product_id
-		WHERE poi.order_id=$1
-		GROUP BY poi.product_id`, purchaseID)
+		WHERE poi.order_id=$1`, purchaseID)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	type row struct {
-		id          uuid.UUID
-		qty, stock  int32
-		total, cost decimal.Decimal
+	// 按商品聚合净额（同单多行同商品必须合并计算，且逐行税率拆分不能在 SQL 里 SUM），
+	// 与 updateMovingAverage 的写法对称。
+	type agg struct {
+		qty   int32
+		stock int32
+		net   decimal.Decimal
+		cost  decimal.Decimal
 	}
-	var items []row
+	byProd := map[uuid.UUID]*agg{}
 	for rows.Next() {
-		var r row
-		if err := rows.Scan(&r.id, &r.qty, &r.total, &r.stock, &r.cost); err != nil {
+		var pid uuid.UUID
+		var qty int32
+		var gross, rate, stock, cost decimal.Decimal
+		if err := rows.Scan(&pid, &qty, &gross, &rate, &stock, &cost); err != nil {
 			return err
 		}
-		items = append(items, r)
+		a := byProd[pid]
+		if a == nil {
+			a = &agg{stock: int32(stock.IntPart()), cost: cost}
+			byProd[pid] = a
+		}
+		a.qty += qty
+		net, _ := splitTax(gross, rate)
+		a.net = a.net.Add(net)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, r := range items {
-		s := decimal.NewFromInt(int64(r.stock))
+	for pid, a := range byProd {
+		s := decimal.NewFromInt(int64(a.stock))
 		if s.LessThanOrEqual(decimal.Zero) {
 			continue
 		}
-		q := decimal.NewFromInt(int64(r.qty))
-		oldCost := r.cost.Mul(s.Add(q)).Sub(r.total).Div(s)
+		q := decimal.NewFromInt(int64(a.qty))
+		// 净额口径，与 updateMovingAverage 对称：oldCost = (cost*(stock+qty) - netAmount)/stock
+		oldCost := a.cost.Mul(s.Add(q)).Sub(a.net).Div(s)
 		if oldCost.LessThan(decimal.Zero) {
 			oldCost = decimal.Zero
 		}
-		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=NOW() WHERE id=$1`, r.id, money(oldCost)); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=NOW() WHERE id=$1`, pid, money(oldCost)); err != nil {
 			return err
 		}
 	}

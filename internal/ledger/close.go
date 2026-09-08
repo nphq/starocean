@@ -22,6 +22,7 @@ type CloseCheck struct {
 	CanClose        bool           `json:"can_close"`
 	CanReopen       bool           `json:"can_reopen"`
 	DraftCount      int64          `json:"draft_count"`
+	ReviewedCount   int64          `json:"reviewed_count"`
 	PostedCount     int64          `json:"posted_count"`
 	Unbalanced      int64          `json:"unbalanced"`
 	TrialBalanced   bool           `json:"trial_balanced"`
@@ -40,10 +41,11 @@ func CheckClose(ctx context.Context, db DBTX, year, month int) (CloseCheck, erro
 	out := CloseCheck{Year: year, Month: month, Status: p.Status, Blockers: []CloseBlocker{}}
 	if err := db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FILTER (WHERE status='draft'),
+		       COUNT(*) FILTER (WHERE status='reviewed'),
 		       COUNT(*) FILTER (WHERE status='posted'),
-		       COUNT(*) FILTER (WHERE status='draft' AND debit_total <> credit_total)
+		       COUNT(*) FILTER (WHERE status IN ('draft','reviewed') AND debit_total <> credit_total)
 		FROM gl_vouchers WHERE period_year=$1 AND period_month=$2 AND company_id=$3`,
-		year, month, companyID).Scan(&out.DraftCount, &out.PostedCount, &out.Unbalanced); err != nil {
+		year, month, companyID).Scan(&out.DraftCount, &out.ReviewedCount, &out.PostedCount, &out.Unbalanced); err != nil {
 		return out, err
 	}
 
@@ -87,9 +89,9 @@ func CheckClose(ctx context.Context, db DBTX, year, month int) (CloseCheck, erro
 		})
 	}
 
-	if out.DraftCount > 0 {
+	if unposted := out.DraftCount + out.ReviewedCount; unposted > 0 {
 		out.Blockers = append(out.Blockers, CloseBlocker{
-			Code: "drafts", Message: "存在未过账草稿凭证", Count: out.DraftCount,
+			Code: "drafts", Message: "存在未过账凭证", Count: unposted,
 			Href: fmt.Sprintf("/ledger/vouchers?year=%d&month=%d&status=draft", year, month),
 		})
 	}

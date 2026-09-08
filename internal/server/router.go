@@ -117,6 +117,8 @@ func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName st
 
 		auth.GET("/finance", finH.FinancePage)
 		auth.POST("/finance/payments", finH.PaymentCreate)
+		auth.GET("/finance/payments/:id", finH.PaymentDetail)
+		auth.GET("/finance/clearings", finH.ClearingsList)
 		auth.GET("/finance/cashflow", finH.CashflowAPI)
 		auth.GET("/finance/cashflow/trend", finH.CashflowTrendAPI)
 		auth.GET("/finance/receivable/aging", finH.ReceivableAgingAPI)
@@ -172,6 +174,8 @@ func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName st
 		auth.GET("/ledger/vouchers/:id", ledgerH.VoucherGet)
 		auth.PUT("/ledger/vouchers/:id", ledgerH.VoucherUpdate)
 		auth.POST("/ledger/vouchers/:id/post", ledgerH.VoucherPost)
+		auth.POST("/ledger/vouchers/:id/review", ledgerH.VoucherReview)
+		auth.POST("/ledger/vouchers/:id/reject", ledgerH.VoucherReject)
 		auth.POST("/ledger/vouchers/:id/reverse", ledgerH.VoucherReverse)
 		auth.DELETE("/ledger/vouchers/:id", ledgerH.VoucherDelete)
 		auth.GET("/ledger/books/trial", ledgerH.Trial)

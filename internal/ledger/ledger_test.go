@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,10 +14,13 @@ import (
 
 func testDB(t *testing.T) *sql.DB {
 	t.Helper()
-	// 与 main_test 一致: STAROCEAN_TEST_DSN 可切换 SQLite/PostgreSQL 运行整套集成测试
+	// 缺省使用 t.TempDir() 下的 SQLite 临时库（零依赖，裸 `go test` 也能真正
+	// 执行）；STAROCEAN_TEST_DSN 可切换 SQLite/PostgreSQL 运行整套集成测试。
+	// 连接失败一律 Fatal：显式 DSN 连不上是配置错误，缺省 SQLite 本地一定可用，
+	// 静默 Skip 只会造成假绿（性能基线测试缺库跳过除外，见 main_test ensurePerfDB）。
 	url := os.Getenv("STAROCEAN_TEST_DSN")
 	if url == "" {
-		url = "postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable"
+		url = "sqlite:" + filepath.Join(t.TempDir(), "starocean-test.db")
 	}
 	// go test ./... 各包并行运行，SQLite 需使用独立文件避免相互冲突
 	if strings.HasPrefix(url, "sqlite:") {
@@ -25,7 +29,7 @@ func testDB(t *testing.T) *sql.DB {
 	}
 	database, err := db.Connect(url)
 	if err != nil {
-		t.Skipf("no database: %v", err)
+		t.Fatalf("test database unavailable (DSN=%q): %v", url, err)
 	}
 	// P0: 自动迁移（SQLite/PG 均适用），此前未迁移直接 Skip 导致 SQLite 下 GL 集成测试静默漏跑
 	if err := db.Migrate(database, url, db.EmbeddedMigrations); err != nil {
