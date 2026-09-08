@@ -361,6 +361,15 @@ func reverseVoucher(ctx context.Context, db DBTX, id uuid.UUID, preparedBy strin
 		return Voucher{}, err
 	}
 	revID := uuid.New()
+	// 先守卫占位再生成红冲凭证：并发/双击下仅一次成功（PG 无 IMMEDIATE 串行化，
+	// 靠 reversed_by_id IS NULL + 影响行数判定，失败方整个事务回滚）。
+	res, err := db.ExecContext(ctx, `UPDATE gl_vouchers SET reversed_by_id=$2, updated_at=NOW() WHERE id=$1 AND reversed_by_id IS NULL`, orig.ID, revID)
+	if err != nil {
+		return Voucher{}, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return Voucher{}, fmt.Errorf("该凭证已被冲销")
+	}
 	rev := Voucher{
 		ID:          revID,
 		VoucherNo:   no,
@@ -378,9 +387,6 @@ func reverseVoucher(ctx context.Context, db DBTX, id uuid.UUID, preparedBy strin
 		CreditTotal: cr,
 	}
 	if err := insertVoucher(ctx, db, rev, parsed); err != nil {
-		return Voucher{}, err
-	}
-	if _, err := db.ExecContext(ctx, `UPDATE gl_vouchers SET reversed_by_id=$2, updated_at=NOW() WHERE id=$1`, orig.ID, revID); err != nil {
 		return Voucher{}, err
 	}
 	if err := postVoucher(ctx, db, revID, preparedBy, allowClosed, true); err != nil {

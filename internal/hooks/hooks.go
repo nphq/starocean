@@ -2,8 +2,11 @@ package hooks
 
 import (
 	"context"
+	"log"
+	"runtime/debug"
 	"sort"
 	"sync"
+	"time"
 )
 
 type Event struct {
@@ -36,6 +39,7 @@ type Registry struct {
 	mu     sync.RWMutex
 	after  map[string][]afterReg
 	before map[string][]beforeReg
+	wg     sync.WaitGroup
 }
 
 func NewRegistry() *Registry {
@@ -92,18 +96,51 @@ func (r *Registry) Fire(event Event) {
 	sort.SliceStable(list, func(i, j int) bool { return list[i].priority < list[j].priority })
 	for _, h := range list {
 		func() {
-			defer func() { _ = recover() }()
+			defer func() {
+				if rec := recover(); rec != nil {
+					log.Printf("[hooks] %s 监听器 panic: %v\n%s", event.Name, rec, debug.Stack())
+				}
+			}()
 			h.fn(event)
 		}()
 	}
 }
 
+// FireAfter 异步触发：goroutine 在途数量由 wg 跟踪，panic 记日志（含堆栈）而非静默吞掉。
 func (r *Registry) FireAfter(event Event) {
 	copied := Event{Name: event.Name, Payload: clonePayload(event.Payload)}
+	r.wg.Add(1)
 	go func() {
-		defer func() { _ = recover() }()
+		defer r.wg.Done()
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[hooks] FireAfter %s 监听器 panic: %v\n%s", event.Name, rec, debug.Stack())
+			}
+		}()
 		r.Fire(copied)
 	}()
+}
+
+// Wait 等待在途 FireAfter 监听器执行完毕（进程退出前调用，避免硬杀异步监听器）。
+func (r *Registry) Wait() {
+	r.wg.Wait()
+}
+
+// WaitTimeout 等待在途监听器，超时返回 false（超时后 Wait 仍可能在后台收尾）。
+func (r *Registry) WaitTimeout(d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		close(done)
+	}()
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-done:
+		return true
+	case <-t.C:
+		return false
+	}
 }
 
 func (r *Registry) FireBefore(ctx context.Context, event Event) Result {

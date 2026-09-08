@@ -92,12 +92,17 @@ func (h *Handler) GeneratePickingOrder(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	var count int64
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM picking_orders WHERE order_date = CURRENT_DATE`).Scan(&count); err != nil {
+	// order_sequences 原子取号（与订单号生成同模式）：COUNT+1 在删单后会回退撞历史号。
+	seqKey := "PK-" + time.Now().Format("20060102")
+	var seq int32
+	if err := tx.QueryRowContext(ctx, `
+		INSERT INTO order_sequences (seq_key, last_seq) VALUES ($1, 1)
+		ON CONFLICT (seq_key) DO UPDATE SET last_seq = order_sequences.last_seq + 1
+		RETURNING last_seq`, seqKey).Scan(&seq); err != nil {
 		shared.JSONInternal(c, err)
 		return
 	}
-	pickingNo := fmt.Sprintf("PK-%s-%03d", time.Now().Format("20060102"), count+1)
+	pickingNo := fmt.Sprintf("PK-%s-%03d", time.Now().Format("20060102"), seq)
 
 	var pickingID uuid.UUID
 	err = tx.QueryRowContext(ctx,

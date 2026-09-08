@@ -18,6 +18,7 @@ import (
 	"github.com/nphq/starocean/internal/db"
 	"github.com/nphq/starocean/internal/middleware"
 	"github.com/nphq/starocean/internal/server"
+	"github.com/nphq/starocean/internal/shared"
 )
 
 //go:embed internal/db/migrations
@@ -161,6 +162,10 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("forced shutdown: %v", err)
+	}
+	// 等待 FireAfter 异步监听器收尾（有上限，避免监听器卡住拖死停机）。
+	if !shared.WaitHooks(5 * time.Second) {
+		log.Printf("hooks wait timed out after 5s; continuing shutdown")
 	}
 	log.Println("starocean stopped")
 }

@@ -9,6 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"github.com/google/uuid"
 	"github.com/nphq/starocean/internal/models"
 	"github.com/nphq/starocean/view/component"
 	"github.com/nphq/starocean/view/vmodel"
@@ -102,7 +103,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var4 templ.SafeURL
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/inventory/" + m.ProductID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 36, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 37, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -115,7 +116,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(m.ProductName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 36, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 37, Col: 131}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -128,7 +129,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(m.ProductCode)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 37, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 38, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -156,7 +157,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.I32toa(m.Quantity))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 46, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 47, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -169,7 +170,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.I32toa(m.BeforeStock))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 47, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 48, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -182,7 +183,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.I32toa(m.AfterStock))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 47, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 48, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -195,7 +196,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(m.ReferenceType))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 48, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 49, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -208,7 +209,7 @@ func InventoryListInner(items []models.InventoryMovement, page int32, total int6
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.DateTime(m.CreatedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 49, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 50, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -285,7 +286,7 @@ func InventoryByProduct(p models.Product, items []models.InventoryMovement) temp
 			var templ_7745c5c3_Var14 templ.SafeURL
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/products/" + p.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 63, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 64, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -328,7 +329,7 @@ func InventoryByProduct(p models.Product, items []models.InventoryMovement) temp
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.I32toa(m.Quantity))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 86, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 87, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -341,7 +342,7 @@ func InventoryByProduct(p models.Product, items []models.InventoryMovement) temp
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.I32toa(m.BeforeStock))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 87, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 88, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -354,7 +355,7 @@ func InventoryByProduct(p models.Product, items []models.InventoryMovement) temp
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.I32toa(m.AfterStock))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 87, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 88, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -367,7 +368,7 @@ func InventoryByProduct(p models.Product, items []models.InventoryMovement) temp
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(m.ReferenceType))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 88, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 89, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -380,7 +381,7 @@ func InventoryByProduct(p models.Product, items []models.InventoryMovement) temp
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.DateTime(m.CreatedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 89, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 90, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -412,7 +413,14 @@ type FinanceSummary struct {
 	Payable    string
 }
 
-func FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total int64, limit int, errMsg string) templ.Component {
+func formClientToken(existing string) string {
+	if existing != "" {
+		return existing
+	}
+	return uuid.NewString()
+}
+
+func FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total int64, limit int, errMsg, clientToken string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -487,7 +495,20 @@ func FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total i
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div></div><div class=\"card h-fit p-5\"><h3 class=\"mb-4 text-sm font-semibold text-warm-900 dark:text-warm-100\">登记收付款</h3><form action=\"/finance/payments\" method=\"post\" class=\"space-y-3\"><label class=\"block\"><span class=\"mb-1 block text-xs font-medium text-warm-500\">类型</span> <select name=\"type\" class=\"select-field\"><option value=\"收入\">收入</option> <option value=\"支出\">支出</option></select></label>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</div></div><div class=\"card h-fit p-5\"><h3 class=\"mb-4 text-sm font-semibold text-warm-900 dark:text-warm-100\">登记收付款</h3><form action=\"/finance/payments\" method=\"post\" class=\"space-y-3\"><input type=\"hidden\" name=\"client_token\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var22 string
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(formClientToken(clientToken))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 139, Col: 81}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\"> <label class=\"block\"><span class=\"mb-1 block text-xs font-medium text-warm-500\">类型</span> <select name=\"type\" class=\"select-field\"><option value=\"收入\">收入</option> <option value=\"支出\">支出</option></select></label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -503,7 +524,7 @@ func FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total i
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<button type=\"submit\" class=\"btn-primary w-full\">登记</button></form></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<button type=\"submit\" class=\"btn-primary w-full\">登记</button></form></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -527,82 +548,82 @@ func PaymentListInner(items []models.Payment, page int32, total int64, limit int
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var22 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var22 == nil {
-			templ_7745c5c3_Var22 = templ.NopComponent
+		templ_7745c5c3_Var23 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var23 == nil {
+			templ_7745c5c3_Var23 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<table class=\"w-full\"><thead><tr><th class=\"table-header\">类型</th><th class=\"table-header text-right\">金额</th><th class=\"table-header\">往来方</th><th class=\"table-header\">日期</th></tr></thead> <tbody class=\"divide-y divide-warm-100 dark:divide-warm-700/40\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<table class=\"w-full\"><thead><tr><th class=\"table-header\">类型</th><th class=\"table-header text-right\">金额</th><th class=\"table-header\">往来方</th><th class=\"table-header\">日期</th></tr></thead> <tbody class=\"divide-y divide-warm-100 dark:divide-warm-700/40\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, p := range items {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<tr><td class=\"table-cell\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<tr><td class=\"table-cell\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if p.Type == "收入" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<span class=\"badge bg-emerald-50 text-emerald-700 border border-emerald-200\">收入</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<span class=\"badge bg-emerald-50 text-emerald-700 border border-emerald-200\">收入</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<span class=\"badge bg-amber-50 text-amber-700 border border-amber-200\">支出</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<span class=\"badge bg-amber-50 text-amber-700 border border-amber-200\">支出</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</td><td class=\"table-cell text-right font-semibold tnum\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var23 string
-			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.Money(p.Amount))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 167, Col: 82}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</td><td class=\"table-cell text-warm-600 dark:text-warm-400\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</td><td class=\"table-cell text-right font-semibold tnum\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var24 string
-			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(p.PartnerName))
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.Money(p.Amount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 168, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 176, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</td><td class=\"table-cell text-xs text-warm-500\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</td><td class=\"table-cell text-warm-600 dark:text-warm-400\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var25 string
-			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.DateOnly(p.PaymentDate))
+			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(p.PartnerName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 169, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 177, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</td><td class=\"table-cell text-xs text-warm-500\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var26 string
+			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.DateOnly(p.PaymentDate))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/inventory_finance.templ`, Line: 178, Col: 82}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if len(items) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<tr><td colspan=\"4\" class=\"table-cell py-8 text-center text-warm-400\">暂无记录</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<tr><td colspan=\"4\" class=\"table-cell py-8 text-center text-warm-400\">暂无记录</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

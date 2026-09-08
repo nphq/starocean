@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/google/uuid"
 	"github.com/nphq/starocean/internal/models"
 	"github.com/nphq/starocean/view/component"
 	"github.com/nphq/starocean/view/vmodel"
@@ -104,7 +105,14 @@ type FinanceSummary struct {
 	Payable    string
 }
 
-templ FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total int64, limit int, errMsg string) {
+func formClientToken(existing string) string {
+	if existing != "" {
+		return existing
+	}
+	return uuid.NewString()
+}
+
+templ FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total int64, limit int, errMsg, clientToken string) {
 	@component.PageHead("收付流水", "本月收支与往来总览。") {
 		<a href="/finance/reimbursements" class="btn-secondary">费用报销</a>
 		<a href="/finance/invoices" class="btn-secondary">发票管理</a>
@@ -128,6 +136,7 @@ templ FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total 
 		<div class="card h-fit p-5">
 			<h3 class="mb-4 text-sm font-semibold text-warm-900 dark:text-warm-100">登记收付款</h3>
 			<form action="/finance/payments" method="post" class="space-y-3">
+				<input type="hidden" name="client_token" value={ formClientToken(clientToken) }/>
 				<label class="block">
 					<span class="mb-1 block text-xs font-medium text-warm-500">类型</span>
 					<select name="type" class="select-field">

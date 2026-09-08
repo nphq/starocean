@@ -53,6 +53,8 @@ type paymentInput struct {
 	Notes         string    `json:"notes"`
 	ReferenceType string    `json:"reference_type"`
 	ReferenceID   uuid.UUID `json:"reference_id"`
+	// ClientToken 客户端幂等键：同一令牌重复提交（双击/重试）幂等返回，不重复落账。
+	ClientToken string `json:"client_token"`
 }
 
 func (h *Handler) FinancePage(c *gin.Context) {
@@ -146,6 +148,21 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
+	// 幂等键预检：同令牌流水已存在（前一次提交已成功）→ 幂等返回，不重复落账；
+	// 并发窗口由 idx_payments_client_token 唯一索引兜底（撞索引同样幂等成功）。
+	if input.ClientToken != "" {
+		var existing uuid.UUID
+		err := tx.QueryRowContext(ctx, `SELECT id FROM payments WHERE client_token = $1`, input.ClientToken).Scan(&existing)
+		if err == nil {
+			shared.JSONOK(c, gin.H{"ok": true, "payment_id": existing.String(), "duplicate": true})
+			return
+		}
+		if err != sql.ErrNoRows {
+			shared.JSONInternal(c, err)
+			return
+		}
+	}
+
 	var refType interface{}
 	if input.ReferenceType != "" {
 		refType = input.ReferenceType
@@ -190,10 +207,8 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		}
 	}
 
-	var pType interface{}
-	if partnerType != "" {
-		pType = partnerType
-	}
+	// partner_type NOT NULL DEFAULT ''：显式传 NULL 不吃默认值，空串=未匹配（与 026 回填语义一致）。
+	pType := partnerType
 	var pID interface{}
 	if partnerID != uuid.Nil {
 		pID = partnerID
@@ -208,10 +223,19 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 	}
 
 	paymentID := uuid.New()
-	_, err = tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, reference_type, reference_id, partner_name, partner_type, partner_id, notes, payment_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
-		paymentID, input.Type, input.Amount, refType, refID, pName, pType, pID, notes)
+	var clientToken interface{}
+	if input.ClientToken != "" {
+		clientToken = input.ClientToken
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, reference_type, reference_id, partner_name, partner_type, partner_id, notes, client_token, payment_date, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+		paymentID, input.Type, input.Amount, refType, refID, pName, pType, pID, notes, clientToken)
 	if err != nil {
+		if input.ClientToken != "" && shared.IsUniqueViolation(err) {
+			_ = tx.Rollback()
+			respondDuplicatePayment(c, ctx, h.db, input.ClientToken)
+			return
+		}
 		shared.JSONInternal(c, err)
 		return
 	}
@@ -272,7 +296,18 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 	}
 
 	shared.FireAfter("payment.created", payload)
-	shared.JSONCreated(c, gin.H{"ok": true})
+	shared.JSONCreated(c, gin.H{"ok": true, "payment_id": paymentID.String()})
+}
+
+func respondDuplicatePayment(c *gin.Context, ctx context.Context, db *sql.DB, token string) {
+	out := gin.H{"ok": true, "duplicate": true}
+	if id, err := shared.LookupPaymentIDByToken(ctx, db, token); err == nil {
+		out["payment_id"] = id.String()
+	} else if err != sql.ErrNoRows {
+		shared.JSONInternal(c, err)
+		return
+	}
+	shared.JSONOK(c, out)
 }
 
 // paymentRejectedMsg 区分"订单不存在"与"付款超出来单未收金额"两种情况。

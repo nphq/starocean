@@ -1,11 +1,13 @@
 package web
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/internal/shared"
 	"github.com/nphq/starocean/view/pages"
 	"github.com/shopspring/decimal"
 )
@@ -113,15 +115,16 @@ func (h *Handler) FinancePage(c *gin.Context) {
 		renderFrag(c, pages.PaymentListInner(items, page, total, limit))
 		return
 	}
-	h.renderPage(c, "收付流水", pages.FinanceHome(summary, items, page, total, limit, ""))
+	h.renderPage(c, "收付流水", pages.FinanceHome(summary, items, page, total, limit, "", ""))
 }
 
 func (h *Handler) PaymentCreate(c *gin.Context) {
 	ctx := c.Request.Context()
 	payType := c.PostForm("type")
 	amountStr := c.PostForm("amount")
+	token := c.PostForm("client_token")
 	fail := func(msg string) {
-		h.renderPage(c, "收付流水", pages.FinanceHome(pages.FinanceSummary{}, nil, 1, 0, 20, msg))
+		h.renderPage(c, "收付流水", pages.FinanceHome(pages.FinanceSummary{}, nil, 1, 0, 20, msg, token))
 	}
 	if payType != "收入" && payType != "支出" {
 		fail("类型必须为收入或支出")
@@ -138,9 +141,28 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, partner_name, notes, payment_date, created_at)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NOW(), NOW())`,
-		uuid.New(), payType, amountStr, c.PostForm("partner_name"), c.PostForm("notes")); err != nil {
+	// 表单一次性令牌（client_token）：双击/刷新重复提交时幂等跳转，不重复落账。
+	if token != "" {
+		var existing uuid.UUID
+		err := tx.QueryRowContext(ctx, `SELECT id FROM payments WHERE client_token = $1`, token).Scan(&existing)
+		if err == nil {
+			tx.Rollback()
+			redirect(c, "/finance")
+			return
+		}
+		if err != sql.ErrNoRows {
+			fail("保存失败")
+			return
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, partner_name, notes, client_token, payment_date, created_at)
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NOW(), NOW())`,
+		uuid.New(), payType, amountStr, c.PostForm("partner_name"), c.PostForm("notes"), token); err != nil {
+		if token != "" && shared.IsUniqueViolation(err) {
+			_ = tx.Rollback()
+			redirect(c, "/finance")
+			return
+		}
 		fail("保存失败")
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -35,6 +36,11 @@ func FireBefore(ctx context.Context, name string, payload map[string]interface{}
 
 func FireAfter(name string, payload map[string]interface{}) {
 	hooks.Default.FireAfter(hooks.Event{Name: name, Payload: payload})
+}
+
+// WaitHooks 等待在途 FireAfter 异步监听器收尾（进程退出前调用）。超时返回 false。
+func WaitHooks(timeout time.Duration) bool {
+	return hooks.Default.WaitTimeout(timeout)
 }
 
 func JSONMapArg(m map[string]interface{}) string {

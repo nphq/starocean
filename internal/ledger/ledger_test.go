@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -259,6 +260,70 @@ func TestReverseVoucher(t *testing.T) {
 	}
 	if book.Closing != "0.00" && book.Closing != "0" {
 		t.Fatalf("cash should net to 0 after reverse, got %s", book.Closing)
+	}
+}
+
+func TestReverseVoucherConcurrent(t *testing.T) {
+	database := testDB(t)
+	ctx := context.Background()
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := CreateVoucher(ctx, tx, VoucherInput{
+		VoucherDate: "2024-05-01",
+		Summary:     "并发冲销",
+		Lines: []LineInput{
+			{AccountCode: "1001", Debit: "50.00"},
+			{AccountCode: "6301", Credit: "50.00"},
+		},
+	}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := PostVoucher(ctx, tx, v.ID, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			tx, err := database.BeginTx(ctx, nil)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			defer tx.Rollback()
+			if _, err := ReverseVoucher(ctx, tx, v.ID, "test"); err != nil {
+				errs[i] = err
+				return
+			}
+			errs[i] = tx.Commit()
+		}(i)
+	}
+	wg.Wait()
+
+	ok := 0
+	for _, e := range errs {
+		if e == nil {
+			ok++
+		}
+	}
+	if ok != 1 {
+		t.Fatalf("expected exactly 1 reverse to succeed, got %d (errs=%v)", ok, errs)
+	}
+	var n int
+	if err := database.QueryRow(`SELECT COUNT(*) FROM gl_vouchers WHERE reverses_id = $1`, v.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 reversing voucher, got %d", n)
 	}
 }
 

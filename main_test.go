@@ -22,6 +22,7 @@ import (
 	"github.com/nphq/starocean/internal/hooks"
 	"github.com/nphq/starocean/internal/middleware"
 	"github.com/nphq/starocean/internal/server"
+	"github.com/nphq/starocean/internal/shared"
 	"github.com/shopspring/decimal"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -408,6 +409,185 @@ func TestPaymentCreatesClearingAndBackfillsPartner(t *testing.T) {
 	cl, _ := body3["clearings"].([]any)
 	if len(cl) != 1 {
 		t.Fatalf("payment detail: expected 1 clearing, got %d", len(cl))
+	}
+}
+
+func TestPaymentClientTokenIdempotent(t *testing.T) {
+	// 幂等键：双击/重试用同一 client_token 重复提交，只落一笔流水、一张凭证。
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+
+	body := map[string]any{
+		"type":         "收入",
+		"amount":       "50.00",
+		"partner_name": "Test Co",
+		"client_token": "tok-idem-1",
+	}
+	for i := 0; i < 2; i++ {
+		req := authJSON("POST", "/api/finance/payments", body, sess)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusCreated && w.Code != http.StatusOK {
+			t.Fatalf("post #%d: expected 201/200, got %d body=%s", i+1, w.Code, truncate(w.Body.String(), 200))
+		}
+	}
+
+	var n int
+	database.QueryRow(`SELECT COUNT(*) FROM payments WHERE partner_name = 'Test Co'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("expected exactly 1 payment, got %d", n)
+	}
+	var v int
+	database.QueryRow(`SELECT COUNT(*) FROM gl_vouchers WHERE source_type = 'payment'`).Scan(&v)
+	if v != 1 {
+		t.Fatalf("expected exactly 1 payment voucher, got %d", v)
+	}
+}
+
+func TestPaymentClientTokenConcurrent(t *testing.T) {
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+
+	const n = 8
+	codes := make([]int, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			req := authJSON("POST", "/api/finance/payments", map[string]any{
+				"type":         "收入",
+				"amount":       "50.00",
+				"partner_name": "Test Co",
+				"client_token": "tok-conc-1",
+			}, sess)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			codes[i] = w.Code
+		}(i)
+	}
+	wg.Wait()
+	for i, c := range codes {
+		if c != http.StatusCreated && c != http.StatusOK {
+			t.Errorf("post %d: expected 201/200, got %d", i, c)
+		}
+	}
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM payments WHERE client_token = 'tok-conc-1'`).Scan(&count)
+	if count != 1 {
+		t.Fatalf("expected 1 payment, got %d", count)
+	}
+	var v int
+	database.QueryRow(`SELECT COUNT(*) FROM gl_vouchers WHERE source_type = 'payment'`).Scan(&v)
+	if v != 1 {
+		t.Fatalf("expected 1 payment voucher, got %d", v)
+	}
+}
+
+func TestPaymentFormClientTokenIdempotent(t *testing.T) {
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+	post := func() *httptest.ResponseRecorder {
+		vals := url.Values{
+			"type": {"收入"}, "amount": {"12.00"}, "partner_name": {"Form Co"},
+			"client_token": {"tok-form-1"},
+		}
+		req := httptest.NewRequest("POST", "/finance/payments", strings.NewReader(vals.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(sess)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+	for i := 0; i < 2; i++ {
+		w := post()
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("form post #%d: expected 303, got %d body=%s", i+1, w.Code, truncate(w.Body.String(), 200))
+		}
+		if loc := w.Header().Get("Location"); loc != "/finance" {
+			t.Fatalf("form post #%d: expected Location /finance, got %q", i+1, loc)
+		}
+	}
+	var n int
+	database.QueryRow(`SELECT COUNT(*) FROM payments WHERE client_token = 'tok-form-1'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("expected 1 payment, got %d", n)
+	}
+}
+
+func TestPaymentFormClientTokenConcurrent(t *testing.T) {
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+	const n = 8
+	codes := make([]int, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			vals := url.Values{
+				"type": {"收入"}, "amount": {"12.00"}, "partner_name": {"Form Co"},
+				"client_token": {"tok-form-conc"},
+			}
+			req := httptest.NewRequest("POST", "/finance/payments", strings.NewReader(vals.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.AddCookie(sess)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			codes[i] = w.Code
+		}(i)
+	}
+	wg.Wait()
+	for i, c := range codes {
+		if c != http.StatusSeeOther {
+			t.Errorf("form post %d: expected 303, got %d", i, c)
+		}
+	}
+	var count int
+	database.QueryRow(`SELECT COUNT(*) FROM payments WHERE client_token = 'tok-form-conc'`).Scan(&count)
+	if count != 1 {
+		t.Fatalf("expected 1 payment, got %d", count)
+	}
+}
+
+func TestPaymentFormKeepsTokenOnValidationError(t *testing.T) {
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+	vals := url.Values{
+		"type": {"收入"}, "amount": {"-1"}, "client_token": {"tok-keep-1"},
+	}
+	req := httptest.NewRequest("POST", "/finance/payments", strings.NewReader(vals.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(sess)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 error page, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "tok-keep-1") {
+		t.Fatalf("error re-render should keep original client_token, body=%s", truncate(w.Body.String(), 400))
+	}
+}
+
+func TestIsUniqueViolationFromDriver(t *testing.T) {
+	database := setupTestDB(t)
+	_, err := database.Exec(`INSERT INTO payments (id, type, amount, partner_type, client_token, payment_date, created_at)
+		VALUES ($1, '收入', 1, '', $2, NOW(), NOW())`, uuid.New(), "tok-uniq-drv")
+	if err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	_, err = database.Exec(`INSERT INTO payments (id, type, amount, partner_type, client_token, payment_date, created_at)
+		VALUES ($1, '收入', 1, '', $2, NOW(), NOW())`, uuid.New(), "tok-uniq-drv")
+	if err == nil {
+		t.Fatal("expected unique violation")
+	}
+	if !shared.IsUniqueViolation(err) {
+		t.Fatalf("IsUniqueViolation false for %v", err)
 	}
 }
 
