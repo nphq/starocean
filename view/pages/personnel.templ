@@ -1,0 +1,202 @@
+package pages
+
+import (
+	"time"
+
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ EmployeeList(items []models.Employee, q string, page int32, total int64, limit int) {
+	@component.PageHead("员工档案", "") {
+		<a href="/personnel/employees/new" class="btn-primary">新增员工</a>
+	}
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索姓名 / 工号…"
+				hx-get="/personnel/employees" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+		</div>
+		<div id="list">
+			@EmployeeListInner(items, q, page, total, limit)
+		</div>
+	</div>
+}
+
+templ EmployeeListInner(items []models.Employee, q string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">姓名 / 工号</th>
+					<th class="table-header">部门</th>
+					<th class="table-header">电话</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, e := range items {
+					<tr class="transition-colors hover:bg-brand-50/30">
+						<td class="table-cell">
+							<a href={ templ.URL("/personnel/employees/" + e.ID.String()) } class="font-semibold hover:text-brand-600">{ e.Name }</a>
+							<span class="ml-2 font-mono text-xs text-warm-400">{ e.Code }</span>
+						</td>
+						<td class="table-cell text-warm-600">{ orDash(e.DepartmentName) }</td>
+						<td class="table-cell text-warm-500">{ orDash(e.Phone) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(e.Status) }>{ vmodel.StatusLabel(e.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无员工", "", "/personnel/employees/new", "新增员工")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination(listBase("/personnel/employees", q), page, total, limit)
+}
+
+templ EmployeeForm(depts []models.Department, errMsg string) {
+	@component.PageHead("新增员工", "") {
+		<a href="/personnel/employees" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action="/personnel/employees" method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			@component.Field("code", "工号", "", "text", "", true)
+			@component.Field("name", "姓名", "", "text", "", true)
+			<label class="block">
+				<span class="mb-1 block text-xs font-medium text-warm-500">部门</span>
+				<select name="department_id" class="select-field">
+					<option value="">—</option>
+					for _, d := range depts {
+						<option value={ d.ID.String() }>{ d.Name }</option>
+					}
+				</select>
+			</label>
+			@component.Field("phone", "电话", "", "text", "", false)
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ EmployeeDetail(e models.Employee) {
+	@component.PageHead(e.Name, "工号 "+e.Code) {
+	}
+	<div class="card max-w-2xl overflow-hidden">
+		<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+			@component.DlRow("部门", orDash(e.DepartmentName))
+			@component.DlRow("电话", orDash(e.Phone))
+			@component.DlRow("邮箱", orDash(e.Email))
+			@component.DlRow("状态", vmodel.StatusLabel(e.Status))
+		</dl>
+	</div>
+}
+
+templ SalaryList(items []models.SalaryComponent, month string, page int32, total int64, limit int) {
+	@component.PageHead("薪资管理", month+" 月") {
+	}
+	<div class="card overflow-hidden">
+		<form action="/personnel/salary" method="get" class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input type="month" name="month" value={ month } class="input-field md:w-48"/>
+			<button type="submit" class="btn-secondary !py-2 text-xs">查询</button>
+		</form>
+		<div class="scroll-thin overflow-x-auto">
+			<table class="w-full">
+				<thead>
+					<tr>
+						<th class="table-header">员工</th>
+						<th class="table-header text-right">基本工资</th>
+						<th class="table-header text-right">奖金</th>
+						<th class="table-header text-right">实发</th>
+						<th class="table-header">状态</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+					for _, s := range items {
+						<tr>
+							<td class="table-cell font-medium">{ orDash(s.EmployeeName) }</td>
+							<td class="table-cell text-right tnum">{ vmodel.Money(s.BaseSalary) }</td>
+							<td class="table-cell text-right tnum">{ vmodel.Money(s.Bonus) }</td>
+							<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(s.NetSalary) }</td>
+							<td class="table-cell"><span class={ "badge", vmodel.StatusClass(s.Status) }>{ vmodel.StatusLabel(s.Status) }</span></td>
+						</tr>
+					}
+					if len(items) == 0 {
+						<tr><td colspan="5" class="table-cell py-8 text-center text-warm-400">该月暂无薪资数据</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		@component.Pagination("/personnel/salary?month="+month, page, total, limit)
+	</div>
+}
+
+templ ContractList(items []models.Contract) {
+	@component.PageHead("劳动合同", "") {
+	}
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">合同号</th>
+					<th class="table-header">员工</th>
+					<th class="table-header">期限</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, ct := range items {
+					<tr>
+						<td class="table-cell font-medium">{ ct.ContractNo }</td>
+						<td class="table-cell">{ orDash(ct.EmployeeName) }</td>
+						<td class="table-cell text-xs text-warm-500">{ ptrDate(ct.StartDate) } ~ { ptrDate(ct.EndDate) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(ct.Status) }>{ vmodel.StatusLabel(ct.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4" class="table-cell py-8 text-center text-warm-400">暂无合同</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+func ptrDate(t *time.Time) string {
+	if t == nil {
+		return "—"
+	}
+	return vmodel.DateOnly(*t)
+}
+
+templ DepartmentList(depts []models.Department) {
+	@component.PageHead("组织架构", "") {
+	}
+	<div class="card max-w-2xl overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">部门</th>
+					<th class="table-header">编码</th>
+					<th class="table-header">负责人</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, d := range depts {
+					<tr>
+						<td class="table-cell font-medium">{ d.Name }</td>
+						<td class="table-cell font-mono text-xs text-warm-500">{ d.Code }</td>
+						<td class="table-cell text-warm-500">{ orDash(d.ManagerName) }</td>
+					</tr>
+				}
+				if len(depts) == 0 {
+					<tr><td colspan="3" class="table-cell py-8 text-center text-warm-400">暂无部门</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}

@@ -1,0 +1,178 @@
+package pages
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ InventoryList(items []models.InventoryMovement, page int32, total int64, limit int) {
+	@component.PageHead("库存变动", "每一笔入库 / 出库的完整流水。") {
+	}
+	<div class="card overflow-hidden">
+		<div id="list">
+			@InventoryListInner(items, page, total, limit)
+		</div>
+	</div>
+}
+
+templ InventoryListInner(items []models.InventoryMovement, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">商品</th>
+					<th class="table-header">方向</th>
+					<th class="table-header text-right">数量</th>
+					<th class="table-header text-right">前后库存</th>
+					<th class="table-header">关联</th>
+					<th class="table-header">时间</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, m := range items {
+					<tr class="transition-colors hover:bg-warm-50/50 dark:hover:bg-warm-800/30">
+						<td class="table-cell">
+							<a href={ templ.URL("/inventory/" + m.ProductID.String()) } class="font-medium hover:text-brand-600">{ orDash(m.ProductName) }</a>
+							<span class="ml-2 font-mono text-xs uppercase text-warm-400">{ m.ProductCode }</span>
+						</td>
+						<td class="table-cell">
+							if m.Type == "in" {
+								<span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">入库</span>
+							} else {
+								<span class="badge bg-amber-50 text-amber-700 border border-amber-200">出库</span>
+							}
+						</td>
+						<td class="table-cell text-right tnum font-semibold">{ vmodel.I32toa(m.Quantity) }</td>
+						<td class="table-cell text-right tnum text-warm-500">{ vmodel.I32toa(m.BeforeStock) } → { vmodel.I32toa(m.AfterStock) }</td>
+						<td class="table-cell text-xs text-warm-400">{ orDash(m.ReferenceType) }</td>
+						<td class="table-cell text-xs text-warm-500">{ vmodel.DateTime(m.CreatedAt) }</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="6">@component.Empty("暂无库存流水", "", "", "")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination("/inventory", page, total, limit)
+}
+
+templ InventoryByProduct(p models.Product, items []models.InventoryMovement) {
+	@component.PageHead(p.Name, "编码 "+p.Code+" · 当前库存 "+vmodel.I32toa(p.CurrentStock)) {
+		<a href={ templ.URL("/products/" + p.ID.String()) } class="btn-secondary">商品详情</a>
+	}
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">方向</th>
+					<th class="table-header text-right">数量</th>
+					<th class="table-header text-right">前后库存</th>
+					<th class="table-header">关联</th>
+					<th class="table-header">时间</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, m := range items {
+					<tr>
+						<td class="table-cell">
+							if m.Type == "in" {
+								<span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">入库</span>
+							} else {
+								<span class="badge bg-amber-50 text-amber-700 border border-amber-200">出库</span>
+							}
+						</td>
+						<td class="table-cell text-right tnum font-semibold">{ vmodel.I32toa(m.Quantity) }</td>
+						<td class="table-cell text-right tnum text-warm-500">{ vmodel.I32toa(m.BeforeStock) } → { vmodel.I32toa(m.AfterStock) }</td>
+						<td class="table-cell text-xs text-warm-400">{ orDash(m.ReferenceType) }</td>
+						<td class="table-cell text-xs text-warm-500">{ vmodel.DateTime(m.CreatedAt) }</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="5" class="table-cell py-8 text-center text-warm-400">暂无流水</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+type FinanceSummary struct {
+	Income     string
+	Expense    string
+	Receivable string
+	Payable    string
+}
+
+templ FinanceHome(sum FinanceSummary, items []models.Payment, page int32, total int64, limit int, errMsg string) {
+	@component.PageHead("收付流水", "本月收支与往来总览。") {
+		<a href="/finance/reimbursements" class="btn-secondary">费用报销</a>
+		<a href="/finance/invoices" class="btn-secondary">发票管理</a>
+	}
+	@component.Alert(errMsg)
+	<div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+		@component.Stat("本月收入", "¥"+sum.Income)
+		@component.Stat("本月支出", "¥"+sum.Expense)
+		@component.Stat("应收未收", "¥"+sum.Receivable)
+		@component.Stat("应付未付", "¥"+sum.Payable)
+	</div>
+	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<div class="card overflow-hidden lg:col-span-2">
+			<div class="border-b border-warm-200 px-6 py-4 dark:border-warm-700/60">
+				<h3 class="font-semibold text-warm-900 dark:text-warm-100">收付记录</h3>
+			</div>
+			<div id="list">
+				@PaymentListInner(items, page, total, limit)
+			</div>
+		</div>
+		<div class="card h-fit p-5">
+			<h3 class="mb-4 text-sm font-semibold text-warm-900 dark:text-warm-100">登记收付款</h3>
+			<form action="/finance/payments" method="post" class="space-y-3">
+				<label class="block">
+					<span class="mb-1 block text-xs font-medium text-warm-500">类型</span>
+					<select name="type" class="select-field">
+						<option value="收入">收入</option>
+						<option value="支出">支出</option>
+					</select>
+				</label>
+				@component.Field("amount", "金额", "", "text", "如 1000.00", true)
+				@component.Field("partner_name", "往来方", "", "text", "", false)
+				@component.TextArea("notes", "备注", "", "")
+				<button type="submit" class="btn-primary w-full">登记</button>
+			</form>
+		</div>
+	</div>
+}
+
+templ PaymentListInner(items []models.Payment, page int32, total int64, limit int) {
+	<table class="w-full">
+		<thead>
+			<tr>
+				<th class="table-header">类型</th>
+				<th class="table-header text-right">金额</th>
+				<th class="table-header">往来方</th>
+				<th class="table-header">日期</th>
+			</tr>
+		</thead>
+		<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+			for _, p := range items {
+				<tr>
+					<td class="table-cell">
+						if p.Type == "收入" {
+							<span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">收入</span>
+						} else {
+							<span class="badge bg-amber-50 text-amber-700 border border-amber-200">支出</span>
+						}
+					</td>
+					<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(p.Amount) }</td>
+					<td class="table-cell text-warm-600 dark:text-warm-400">{ orDash(p.PartnerName) }</td>
+					<td class="table-cell text-xs text-warm-500">{ vmodel.DateOnly(p.PaymentDate) }</td>
+				</tr>
+			}
+			if len(items) == 0 {
+				<tr><td colspan="4" class="table-cell py-8 text-center text-warm-400">暂无记录</td></tr>
+			}
+		</tbody>
+	</table>
+	@component.Pagination("/finance", page, total, limit)
+}

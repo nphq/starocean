@@ -1,0 +1,117 @@
+package print
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/layout"
+	"github.com/shopspring/decimal"
+)
+
+func computeStatementTotals(orders []models.SalesOrder, payments []models.Payment) (due, paid, balance decimal.Decimal) {
+	for _, o := range orders {
+		due = due.Add(o.TotalAmount)
+		paid = paid.Add(o.PaidAmount)
+	}
+	for _, p := range payments {
+		paid = paid.Add(p.Amount)
+	}
+	balance = due.Sub(paid)
+	return
+}
+
+templ CustomerStatementPrint(customer models.Customer, orders []models.SalesOrder, payments []models.Payment, companyName string) {
+	@layout.PrintLayout("客户对账单", companyName) {
+		<div class="print-title">客户对账单</div>
+		<div class="print-info">
+			<div><span class="label">客　　户：</span><span class="value">{ customer.Name }</span></div>
+			<div><span class="label">编　　码：</span><span class="value">{ customer.Code }</span></div>
+			if customer.ContactPerson != "" {
+				<div><span class="label">联 系 人：</span><span class="value">{ customer.ContactPerson }</span></div>
+			}
+			if customer.Phone != "" {
+				<div><span class="label">电　　话：</span><span class="value">{ customer.Phone }</span></div>
+			}
+			if customer.Address != "" {
+				<div><span class="label">地　　址：</span><span class="value">{ customer.Address }</span></div>
+			}
+		</div>
+
+		<div class="sub-table-title">未清订单</div>
+		<table class="print-table">
+			<thead>
+				<tr>
+					<th>单据编号</th>
+					<th style="width:110px">日期</th>
+					<th style="width:110px">应收金额</th>
+					<th style="width:110px">已收金额</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(orders) > 0 {
+					for _, o := range orders {
+						<tr>
+							<td>{ o.OrderNo }</td>
+							<td class="center">{ o.OrderDate.Format("2006-01-02") }</td>
+							<td class="num">¥{ o.TotalAmount.StringFixed(2) }</td>
+							<td class="num">¥{ o.PaidAmount.StringFixed(2) }</td>
+						</tr>
+					}
+				} else {
+					<tr>
+						<td colspan="4" style="text-align:center;color:#a8a29e">暂无未清订单</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+
+		<div class="sub-table-title">收款记录</div>
+		<table class="print-table">
+			<thead>
+				<tr>
+					<th style="width:110px">日期</th>
+					<th style="width:110px">金额</th>
+					<th>备注</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(payments) > 0 {
+					for _, p := range payments {
+						<tr>
+							<td class="center">
+								if !p.PaymentDate.IsZero() {
+									{ p.PaymentDate.Format("2006-01-02") }
+								} else {
+									-
+								}
+							</td>
+							<td class="num">¥{ p.Amount.StringFixed(2) }</td>
+							<td>{ p.Notes }</td>
+						</tr>
+					}
+				} else {
+					<tr>
+						<td colspan="3" style="text-align:center;color:#a8a29e">暂无收款记录</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+
+		@statementSummary(computeStatementTotals(orders, payments))
+	}
+}
+
+templ statementSummary(due, paid, balance decimal.Decimal) {
+	<div class="print-summary">
+		<div class="summary-line">
+			<span class="sl">应收合计</span>
+			<span class="sv">¥{ due.StringFixed(2) }</span>
+		</div>
+		<div class="summary-line">
+			<span class="sl">已收合计</span>
+			<span class="sv">¥{ paid.StringFixed(2) }</span>
+		</div>
+		<div class="summary-line total">
+			<span class="sl">未收余额</span>
+			<span class="sv">¥{ balance.StringFixed(2) }</span>
+		</div>
+	</div>
+}

@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: starocean
+          POSTGRES_USER: starocean
+          POSTGRES_PASSWORD: starocean
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U starocean -d starocean"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      STAROCEAN_TEST_DSN: ${{ matrix.backend == 'postgres' && 'postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable' || 'sqlite:/tmp/starocean_ci.db' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1020
+
+      - name: templ generate (consistency)
+        run: |
+          export PATH="$PATH:$(go env GOPATH)/bin"
+          templ generate
+          git diff --quiet --exit-code -- 'view/**/*_templ.go' || {
+            echo "::error::templ output stale, run 'make templ' and commit"
+            exit 1
+          }
+
+      - name: go vet
+        run: go vet ./...
+
+      # SQLite 用临时文件库；Postgres 走 service。
+      # main_test/setupTestDB 无库可用时自动 Skip，方言差异由双跑覆盖。
+      - name: go test (race)
+        run: go test -race -count=1 ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
+          args: --timeout=5m ./...

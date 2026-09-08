@@ -1,0 +1,107 @@
+package component
+
+import "strconv"
+
+// PageHead 页头（标题 + 说明 + 右侧操作区）。
+templ PageHead(title, subtitle string) {
+	<div class="mb-6 flex flex-col justify-between gap-3 md:flex-row md:items-center">
+		<div>
+			<h2 class="text-xl font-semibold tracking-tight text-warm-900 dark:text-warm-100">{ title }</h2>
+			if subtitle != "" {
+				<p class="mt-1 text-sm text-warm-500 dark:text-warm-400">{ subtitle }</p>
+			}
+		</div>
+		<div class="flex items-center gap-2">
+			{ children... }
+		</div>
+	</div>
+}
+
+// Alert 行内错误/提示条。
+templ Alert(msg string) {
+	if msg != "" {
+		<div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-600 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-400">{ msg }</div>
+	}
+}
+
+// Empty 空状态。
+templ Empty(message, hint, actionHref, actionLabel string) {
+	<div class="px-6 py-16 text-center">
+		<p class="text-sm font-medium text-warm-500 dark:text-warm-400">{ message }</p>
+		if hint != "" {
+			<p class="mt-1 text-xs text-warm-400">{ hint }</p>
+		}
+		if actionHref != "" {
+			<a href={ templ.URL(actionHref) } class="btn-primary mt-5 !px-4 !py-2 text-xs">{ actionLabel }</a>
+		}
+	</div>
+}
+
+// Pagination 简单分页（htmx：只替换 #list 区域，不整页刷新）。
+templ Pagination(base string, page int32, total int64, pageSize int) {
+	if total > int64(pageSize) {
+		<div class="flex flex-col justify-between gap-3 border-t border-warm-100 px-4 py-4 sm:flex-row sm:items-center md:px-6 dark:border-warm-700/40">
+			<p class="tnum text-xs text-warm-400">共 { strconv.FormatInt(total, 10) } 条 · 第 { strconv.Itoa(int(page)) } / { strconv.Itoa(totalPages(total, pageSize)) } 页</p>
+			<nav aria-label="分页" class="flex items-center gap-1.5">
+				if page > 1 {
+					<a href={ templ.URL(pageURL(base, int(page)-1)) } hx-get={ pageURL(base, int(page)-1) } hx-target="#list" hx-swap="innerHTML" hx-push-url="true" class="btn-ghost text-xs">← 上一页</a>
+				}
+				if int(page) < totalPages(total, pageSize) {
+					<a href={ templ.URL(pageURL(base, int(page)+1)) } hx-get={ pageURL(base, int(page)+1) } hx-target="#list" hx-swap="innerHTML" hx-push-url="true" class="btn-ghost text-xs">下一页 →</a>
+				}
+			</nav>
+		</div>
+	}
+}
+
+func totalPages(total int64, pageSize int) int {
+	return int((total + int64(pageSize) - 1) / int64(pageSize))
+}
+
+func pageURL(base string, p int) string {
+	sep := "?"
+	for i := 0; i < len(base); i++ {
+		if base[i] == '?' {
+			sep = "&"
+			break
+		}
+	}
+	return base + sep + "page=" + strconv.Itoa(p)
+}
+
+// Stat 仪表盘指标卡。
+templ Stat(label, value string) {
+	<div class="card p-5">
+		<p class="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-warm-500 dark:text-warm-400">{ label }</p>
+		<p class="tnum text-2xl font-bold tracking-tight text-warm-900 dark:text-warm-100">{ value }</p>
+	</div>
+}
+
+// DlRow 详情定义行。
+templ DlRow(term, desc string) {
+	<div class="flex justify-between gap-4 px-4 py-2.5">
+		<dt class="flex-shrink-0 text-warm-400">{ term }</dt>
+		<dd class="text-right font-medium text-warm-900 dark:text-warm-100">{ desc }</dd>
+	</div>
+}
+
+// Field 表单字段。
+templ Field(name, label, value, inputType, placeholder string, required bool) {
+	<label class="block">
+		<span class="mb-1 block text-xs font-medium text-warm-500 dark:text-warm-400">
+			{ label }
+			if required {
+				<span class="text-rose-500">*</span>
+			}
+		</span>
+		<input type={ inputType } name={ name } value={ value } placeholder={ placeholder } required?={ required } class="input-field"/>
+	</label>
+}
+
+// TextArea 多行文本字段。
+templ TextArea(name, label, value, placeholder string) {
+	<label class="block">
+		<span class="mb-1 block text-xs font-medium text-warm-500 dark:text-warm-400">{ label }</span>
+		<textarea name={ name } placeholder={ placeholder } rows="3" class="input-field">{ value }</textarea>
+	</label>
+}

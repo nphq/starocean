@@ -1,0 +1,100 @@
+package print
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/layout"
+)
+
+func reimbursementCategoryLabel(cat string) string {
+	switch cat {
+	case "travel":
+		return "差旅"
+	case "entertainment":
+		return "招待"
+	case "transport":
+		return "交通"
+	case "meals":
+		return "餐饮"
+	case "office":
+		return "办公"
+	case "other":
+		return "其他"
+	default:
+		return cat
+	}
+}
+
+templ ReimbursementPrint(r models.Reimbursement, items []models.ReimbursementItem, companyName string) {
+	@layout.PrintLayout("报销单", companyName) {
+		<div class="print-title">报 销 单</div>
+		<div class="print-info">
+			<div><span class="label">报销编号：</span><span class="value">{ r.ReimbursementNo }</span></div>
+			<div><span class="label">申 请 人：</span><span class="value">{ r.ApplicantName }</span></div>
+			<div><span class="label">部　　门：</span><span class="value">{ r.Department }</span></div>
+			<div><span class="label">报销类别：</span><span class="value">{ reimbursementCategoryLabel(r.Category) }</span></div>
+			<div><span class="label">费用日期：</span><span class="value">
+				if r.ExpenseDate != nil {
+					{ r.ExpenseDate.Format("2006-01-02") }
+				} else {
+					-
+				}
+			</span></div>
+			<div><span class="label">状　　态：</span><span class="value">{ r.Status }</span></div>
+		</div>
+
+		if len(items) > 0 {
+			<table class="print-table">
+				<thead>
+					<tr>
+						<th>类别</th>
+						<th style="width:110px">金额</th>
+						<th>说明</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, item := range items {
+						<tr>
+							<td>{ reimbursementCategoryLabel(item.Category) }</td>
+							<td class="num">¥{ item.Amount.StringFixed(2) }</td>
+							<td>{ item.Description }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+
+		<div class="print-total">
+			<span class="total-label">合计：</span>¥{ r.Amount.StringFixed(2) }
+		</div>
+
+		if r.Description != "" {
+			<div class="print-notes">
+				<span class="notes-label">说明：</span>{ r.Description }
+			</div>
+		}
+
+		if r.ApproverName != "" {
+			<div class="print-info" style="margin-top:0">
+				<div><span class="label">审 批 人：</span><span class="value">{ r.ApproverName }</span></div>
+				if r.ApprovedAt != nil {
+					<div><span class="label">审批时间：</span><span class="value">{ r.ApprovedAt.Format("2006-01-02 15:04") }</span></div>
+				}
+			</div>
+		}
+
+		<div class="print-signature">
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">申请人</div>
+			</div>
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">部门主管</div>
+			</div>
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">财务</div>
+			</div>
+		</div>
+	}
+}

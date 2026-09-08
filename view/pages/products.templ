@@ -1,0 +1,188 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+// ProductList 商品列表（含 htmx 搜索/分页，#list 局部刷新）。
+templ ProductList(items []models.Product, q string, page int32, total int64, limit int) {
+	@component.PageHead("商品资料", "管理商品目录、分类、单位以及实时库存预警。") {
+		<a href="/products/new" class="btn-primary">新增商品</a>
+	}
+	@component.Alert("")
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索商品名称或编码…"
+				hx-get="/products" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+		</div>
+		<div id="list">
+			@ProductListInner(items, q, page, total, limit)
+		</div>
+	</div>
+}
+
+// ProductListInner 列表内部（表格 + 分页），htmx 片段复用。
+templ ProductListInner(items []models.Product, q string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">商品信息</th>
+					<th class="table-header">分类</th>
+					<th class="table-header text-right">售价/成本</th>
+					<th class="table-header text-right">当前库存</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, p := range items {
+					<tr class="transition-colors hover:bg-brand-50/30 dark:hover:bg-warm-800/30">
+						<td class="table-cell">
+							<a href={ templ.URL("/products/" + p.ID.String()) } class="font-semibold text-warm-900 hover:text-brand-600 dark:text-warm-100">{ p.Name }</a>
+							<div class="mt-0.5 font-mono text-xs uppercase text-warm-400">{ p.Code }</div>
+						</td>
+						<td class="table-cell">
+							if p.Category != "" {
+								<span class="badge bg-brand-50 text-brand-700 border border-brand-100">{ p.Category }</span>
+							} else {
+								<span class="text-sm text-warm-300">-</span>
+							}
+						</td>
+						<td class="table-cell text-right">
+							<div class="tnum flex flex-col items-end">
+								<span class="font-semibold">{ vmodel.Money(p.SalePrice) }</span>
+								<span class="text-xs text-warm-400">成本 { vmodel.Money(p.CostPrice) }</span>
+							</div>
+						</td>
+						<td class="table-cell text-right">
+							<span class={ "tnum text-sm font-semibold", templ.KV("text-rose-600", p.CurrentStock <= p.SafetyStock), templ.KV("text-warm-900 dark:text-warm-100", p.CurrentStock > p.SafetyStock) }>
+								{ vmodel.I32toa(p.CurrentStock) }{ stockUnit(p.Unit) }
+							</span>
+						</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无商品", "开始录入您的第一件商品吧。", "/products/new", "新增商品")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination(listBase("/products", q), page, total, limit)
+}
+
+func stockUnit(unit string) string {
+	if unit == "" {
+		return ""
+	}
+	return " " + unit
+}
+
+func listBase(path, q string) string {
+	if q == "" {
+		return path
+	}
+	return path + "?q=" + q
+}
+
+// ProductDetail 商品详情 + 库存调整。
+templ ProductDetail(p models.Product, errMsg string) {
+	@component.PageHead(p.Name, "编码 "+p.Code) {
+		<a href={ templ.URL("/inventory/" + p.ID.String()) } class="btn-secondary">库存流水</a>
+		<a href={ templ.URL("/products/" + p.ID.String() + "/edit") } class="btn-secondary">编辑</a>
+	}
+	@component.Alert(errMsg)
+	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<div class="card overflow-hidden lg:col-span-2">
+			<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				@component.DlRow("分类", orDash(p.Category))
+				@component.DlRow("单位", orDash(p.Unit))
+				@component.DlRow("售价", vmodel.Money(p.SalePrice))
+				@component.DlRow("成本价", vmodel.Money(p.CostPrice))
+				@component.DlRow("安全库存", vmodel.I32toa(p.SafetyStock))
+				@component.DlRow("当前库存", vmodel.I32toa(p.CurrentStock))
+			</dl>
+		</div>
+		<div class="card p-5">
+			<h3 class="mb-4 text-sm font-semibold text-warm-900 dark:text-warm-100">库存调整</h3>
+			<form action={ templ.URL("/products/" + p.ID.String() + "/stock") } method="post" class="space-y-3">
+				<label class="block">
+					<span class="mb-1 block text-xs font-medium text-warm-500">方向</span>
+					<select name="type" class="select-field">
+						<option value="in">入库（增加）</option>
+						<option value="out">出库（扣减）</option>
+					</select>
+				</label>
+				@component.Field("quantity", "数量", "", "number", "正整数", true)
+				<button type="submit" class="btn-primary w-full">确认调整</button>
+			</form>
+			<form action={ templ.URL("/products/" + p.ID.String() + "/delete") } method="post" class="mt-3" onsubmit="return confirm('确定删除该商品吗？存在关联单据时将拒绝删除。')">
+				<button type="submit" class="btn-danger w-full">删除商品</button>
+			</form>
+		</div>
+	</div>
+}
+
+// ProductForm 新增/编辑表单（p 为 nil 即新增）。
+templ ProductForm(p *models.Product, errMsg string) {
+	@component.PageHead(productFormTitle(p), "") {
+		<a href="/products" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action={ formAction(p) } method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			if p == nil {
+				@component.Field("code", "编码（留空自动生成）", "", "text", "如 SKU-001", false)
+			}
+			@component.Field("name", "名称", fieldVal(p, "name"), "text", "商品名称", true)
+			@component.Field("category", "分类", fieldVal(p, "category"), "text", "如 原材料", false)
+			@component.Field("unit", "单位", fieldVal(p, "unit"), "text", "如 个", false)
+			@component.Field("sale_price", "售价", fieldVal(p, "sale"), "text", "如 12.50", false)
+			@component.Field("cost_price", "成本价", fieldVal(p, "cost"), "text", "如 6.00", false)
+			@component.Field("safety_stock", "安全库存", fieldVal(p, "safety"), "number", "0", false)
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存</button>
+			</div>
+		</form>
+	</div>
+}
+
+func productFormTitle(p *models.Product) string {
+	if p != nil {
+		return "编辑商品"
+	}
+	return "新增商品"
+}
+
+func formAction(p *models.Product) templ.SafeURL {
+	if p == nil {
+		return templ.URL("/products")
+	}
+	return templ.URL("/products/" + p.ID.String())
+}
+
+func fieldVal(p *models.Product, f string) string {
+	if p == nil {
+		return ""
+	}
+	switch f {
+	case "name":
+		return p.Name
+	case "category":
+		return p.Category
+	case "unit":
+		return p.Unit
+	case "sale":
+		return p.SalePrice.StringFixed(2)
+	case "cost":
+		return p.CostPrice.StringFixed(2)
+	case "safety":
+		return strconv.Itoa(int(p.SafetyStock))
+	}
+	return ""
+}

@@ -1,0 +1,53 @@
+# Dependencies (never commit install trees)
+node_modules/
+
+# Root uses npm (package-lock.json) for Tailwind CSS CLI.
+
+# Go binaries and test artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.coverprofile
+coverage/
+starocean
+
+# Go build caches (when GOENV is pointed at the repo)
+.gocache/
+.gomodcache/
+.gopath/
+
+# SQLite runtime files
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+data/
+
+# Generic build output
+dist/
+
+# Environment and secrets
+.env
+.env.*
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Temp
+tmp/
+bin/
+*.log
+
+# Local agent / hook overrides
+.antigravitycli/
+.claude/
+.lefthook-local.yml

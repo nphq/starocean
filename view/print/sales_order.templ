@@ -1,0 +1,81 @@
+package print
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/layout"
+	"fmt"
+)
+
+templ SalesOrderPrint(order models.SalesOrder, items []models.SalesOrderItem, customer models.Customer, companyName string) {
+	@layout.PrintLayout("销售订单", companyName) {
+		<div class="print-title">销 售 订 单</div>
+		<div class="print-info">
+			<div><span class="label">单据编号：</span><span class="value">{ order.OrderNo }</span></div>
+			<div><span class="label">订单日期：</span><span class="value">{ order.OrderDate.Format("2006-01-02") }</span></div>
+			<div><span class="label">客　　户：</span><span class="value">{ customer.Name }</span></div>
+			if !order.DeliveryDate.IsZero() {
+				<div><span class="label">交货日期：</span><span class="value">{ order.DeliveryDate.Format("2006-01-02") }</span></div>
+			} else {
+				<div><span class="label">交货日期：</span><span class="value">-</span></div>
+			}
+			if customer.ContactPerson != "" {
+				<div><span class="label">联 系 人：</span><span class="value">{ customer.ContactPerson }</span></div>
+			}
+			if customer.Phone != "" {
+				<div><span class="label">联系电话：</span><span class="value">{ customer.Phone }</span></div>
+			}
+			if customer.Address != "" {
+				<div><span class="label">地　　址：</span><span class="value">{ customer.Address }</span></div>
+			}
+			<div><span class="label">状　　态：</span><span class="value">{ order.Status }</span></div>
+		</div>
+
+		<table class="print-table">
+			<thead>
+				<tr>
+					<th style="width:40px">序号</th>
+					<th>商品名称</th>
+					<th style="width:70px">数量</th>
+					<th style="width:100px">单价</th>
+					<th style="width:110px">金额</th>
+				</tr>
+			</thead>
+			<tbody>
+				for i, item := range items {
+					<tr>
+						<td class="center">{ fmt.Sprintf("%d", i+1) }</td>
+						<td>{ item.ProductName }</td>
+						<td class="num">{ fmt.Sprintf("%d", item.Quantity) }</td>
+						<td class="num">¥{ item.UnitPrice.StringFixed(2) }</td>
+						<td class="num">¥{ item.Amount.StringFixed(2) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+
+		<div class="print-total">
+			<span class="total-label">合计金额：</span>¥{ order.TotalAmount.StringFixed(2) }
+		</div>
+
+		if order.Notes != "" {
+			<div class="print-notes">
+				<span class="notes-label">备注：</span>{ order.Notes }
+			</div>
+		}
+
+		<div class="print-signature">
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">制单</div>
+			</div>
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">审核</div>
+			</div>
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">收货</div>
+			</div>
+		</div>
+	}
+}

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS plugin_logs;
+DROP TABLE IF EXISTS plugins;

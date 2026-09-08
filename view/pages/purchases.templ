@@ -1,0 +1,172 @@
+package pages
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ PurchaseList(items []models.PurchaseOrder, q string, page int32, total int64, limit int) {
+	@component.PageHead("采购入库", "草稿 → 确认 → 收货加库存 → 付款。") {
+		<a href="/purchases/new" class="btn-primary">新建采购订单</a>
+	}
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索订单号 / 供应商…"
+				hx-get="/purchases" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+		</div>
+		<div id="list">
+			@PurchaseListInner(items, q, page, total, limit)
+		</div>
+	</div>
+}
+
+templ PurchaseListInner(items []models.PurchaseOrder, q string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">订单号</th>
+					<th class="table-header">供应商</th>
+					<th class="table-header">日期</th>
+					<th class="table-header text-right">金额</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, o := range items {
+					<tr class="transition-colors hover:bg-brand-50/30 dark:hover:bg-warm-800/30">
+						<td class="table-cell font-medium"><a href={ templ.URL("/purchases/" + o.ID.String()) } class="hover:text-brand-600">{ o.OrderNo }</a></td>
+						<td class="table-cell text-warm-600 dark:text-warm-400">{ orDash(o.SupplierName) }</td>
+						<td class="table-cell text-warm-500">{ vmodel.DateOnly(o.OrderDate) }</td>
+						<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(o.TotalAmount) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(o.Status) }>{ vmodel.StatusLabel(o.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="5">@component.Empty("暂无采购订单", "创建第一张采购订单吧。", "/purchases/new", "新建采购订单")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination(listBase("/purchases", q), page, total, limit)
+}
+
+templ PurchaseNewForm(sups []models.Supplier, errMsg string) {
+	@component.PageHead("新建采购订单", "先选择供应商建抬头，明细在下一步逐行添加。") {
+		<a href="/purchases" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action="/purchases" method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			<label class="block md:col-span-2">
+				<span class="mb-1 block text-xs font-medium text-warm-500">供应商 <span class="text-rose-500">*</span></span>
+				<select name="supplier_id" required class="select-field">
+					<option value="">请选择…</option>
+					for _, s := range sups {
+						<option value={ s.ID.String() }>{ s.Name }（{ s.Code }）</option>
+					}
+				</select>
+			</label>
+			@component.Field("order_date", "订单日期", "", "date", "", false)
+			<div class="md:col-span-2">
+				@component.TextArea("notes", "备注", "", "")
+			</div>
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">创建并添加明细 →</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ PurchaseDetail(o models.PurchaseOrder, items []models.PurchaseOrderItem, products []models.Product, errMsg string) {
+	@component.PageHead(o.OrderNo, orDash(o.SupplierName)+" · "+vmodel.DateOnly(o.OrderDate)) {
+		<a href={ templ.URL("/purchases/" + o.ID.String() + "/print") } class="btn-secondary">打印</a>
+	}
+	@component.Alert(errMsg)
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(o.Status) }>{ vmodel.StatusLabel(o.Status) }</span>
+		<span class="tnum text-sm text-warm-500">应付 { vmodel.Money(o.TotalAmount) }</span>
+		<span class="flex-1"></span>
+		if o.Status == "draft" {
+			<form action={ templ.URL("/purchases/" + o.ID.String() + "/confirm") } method="post">
+				<button type="submit" class="btn-primary !py-2 text-xs">确认</button>
+			</form>
+		}
+		if o.Status == "confirmed" {
+			<form action={ templ.URL("/purchases/" + o.ID.String() + "/receive") } method="post" onsubmit="return confirm('收货后将增加库存，继续吗？')">
+				<button type="submit" class="btn-primary !py-2 text-xs">收货入库</button>
+			</form>
+		}
+		if o.Status == "received" {
+			<form action={ templ.URL("/purchases/" + o.ID.String() + "/pay") } method="post">
+				<button type="submit" class="btn-primary !py-2 text-xs">付款</button>
+			</form>
+		}
+		if o.Status == "draft" || o.Status == "confirmed" {
+			<form action={ templ.URL("/purchases/" + o.ID.String() + "/cancel") } method="post" onsubmit="return confirm('确定取消该订单吗？')">
+				<button type="submit" class="btn-secondary !py-2 text-xs">取消订单</button>
+			</form>
+		}
+		if o.Status == "draft" || o.Status == "cancelled" {
+			<form action={ templ.URL("/purchases/" + o.ID.String() + "/delete") } method="post" onsubmit="return confirm('确定永久删除该订单吗？')">
+				<button type="submit" class="btn-danger !py-2 text-xs">删除</button>
+			</form>
+		}
+	</div>
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">商品</th>
+					<th class="table-header text-right">数量</th>
+					<th class="table-header text-right">单价</th>
+					<th class="table-header text-right">金额</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, it := range items {
+					<tr>
+						<td class="table-cell">
+							<span class="font-medium">{ it.ProductName }</span>
+							<span class="ml-2 font-mono text-xs uppercase text-warm-400">{ it.ProductCode }</span>
+						</td>
+						<td class="table-cell text-right tnum">{ vmodel.I32toa(it.Quantity) }</td>
+						<td class="table-cell text-right tnum">{ vmodel.Money(it.UnitPrice) }</td>
+						<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(it.Amount) }</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4" class="table-cell py-8 text-center text-warm-400">暂无明细，请在下方逐行添加</td></tr>
+				}
+			</tbody>
+		</table>
+		if o.Status == "draft" {
+			<form action={ templ.URL("/purchases/" + o.ID.String() + "/items") } method="post" class="grid grid-cols-2 gap-3 border-t border-warm-100 bg-warm-50/50 px-4 py-4 md:grid-cols-5 md:px-6 dark:border-warm-700/40 dark:bg-warm-900/30">
+				<label class="col-span-2 block md:col-span-2">
+					<span class="mb-1 block text-xs font-medium text-warm-500">商品</span>
+					<select name="product_id" required class="select-field">
+						<option value="">请选择…</option>
+						for _, p := range products {
+							<option value={ p.ID.String() }>{ p.Name }（{ p.Code } · 库存 { vmodel.I32toa(p.CurrentStock) }）</option>
+						}
+					</select>
+				</label>
+				<label class="block">
+					<span class="mb-1 block text-xs font-medium text-warm-500">数量</span>
+					<input type="number" name="quantity" min="1" max="1000000" required class="input-field"/>
+				</label>
+				<label class="block">
+					<span class="mb-1 block text-xs font-medium text-warm-500">单价</span>
+					<input type="text" name="unit_price" inputmode="decimal" required placeholder="如 6.00" class="input-field"/>
+				</label>
+				<div class="col-span-2 flex items-end md:col-span-1">
+					<button type="submit" class="btn-secondary w-full">+ 添加</button>
+				</div>
+			</form>
+		}
+	</div>
+}

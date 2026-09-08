@@ -1,0 +1,224 @@
+package pages
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ WorkReportList(items []models.WorkReport, typ string, page int32, total int64, limit int) {
+	@component.PageHead("工作报告", "") {
+		<a href="/workreports/new" class="btn-primary">新建报告</a>
+	}
+	<div class="card overflow-hidden">
+		<div class="flex flex-wrap items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<div class="flex gap-1">
+				for _, t := range []struct{ v, l string }{{"", "全部"}, {"daily", "日报"}, {"weekly", "周报"}} {
+					<a
+						href={ templ.URL("/workreports?type=" + t.v) }
+						hx-get={ "/workreports?type=" + t.v } hx-target="#list" hx-swap="innerHTML" hx-push-url="true"
+						class={ "rounded-md px-3 py-1.5 text-xs font-medium", templ.KV("bg-brand-600 text-white", t.v == typ), templ.KV("text-warm-500 hover:bg-warm-100", t.v != typ) }
+					>{ t.l }</a>
+				}
+			</div>
+		</div>
+		<div id="list">
+			@WorkReportListInner(items, typ, page, total, limit)
+		</div>
+	</div>
+}
+
+templ WorkReportListInner(items []models.WorkReport, typ string, page int32, total int64, limit int) {
+	<div class="divide-y divide-warm-100 dark:divide-warm-700/40">
+		for _, wr := range items {
+			<a href={ templ.URL("/workreports/" + wr.ID.String()) } class="block px-4 py-4 transition-colors hover:bg-warm-50/50 md:px-6">
+				<div class="flex items-center gap-2">
+					<span class={ "badge", vmodel.StatusClass(wr.Status) }>{ reportTypeLabel(wr.Type) }</span>
+					<span class="text-xs text-warm-400">{ vmodel.DateOnly(wr.ReportDate) } · { orDash(wr.EmployeeName) }</span>
+				</div>
+				<p class="mt-1.5 line-clamp-2 text-sm text-warm-700 dark:text-warm-200">{ orDash(wr.WorkDone) }</p>
+			</a>
+		}
+		if len(items) == 0 {
+			@component.Empty("暂无报告", "", "/workreports/new", "新建报告")
+		}
+	</div>
+	@component.Pagination("/workreports?type="+typ, page, total, limit)
+}
+
+func reportTypeLabel(t string) string {
+	if t == "weekly" {
+		return "周报"
+	}
+	return "日报"
+}
+
+templ WorkReportForm(errMsg string) {
+	@component.PageHead("新建工作报告", "") {
+		<a href="/workreports" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action="/workreports" method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			<label class="block">
+				<span class="mb-1 block text-xs font-medium text-warm-500">类型</span>
+				<select name="type" class="select-field">
+					<option value="daily">日报</option>
+					<option value="weekly">周报</option>
+				</select>
+			</label>
+			@component.Field("report_date", "日期", "", "date", "", false)
+			@component.Field("employee_name", "姓名", "", "text", "", false)
+			@component.Field("department", "部门", "", "text", "", false)
+			<div class="md:col-span-2">
+				@component.TextArea("work_done", "今日完成", "", "")
+			</div>
+			<div class="md:col-span-2">
+				@component.TextArea("tomorrow_plan", "明日计划", "", "")
+			</div>
+			<div class="md:col-span-2">
+				@component.TextArea("issues", "问题与风险", "", "")
+			</div>
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ WorkReportDetail(wr models.WorkReport) {
+	@component.PageHead(reportTypeLabel(wr.Type), vmodel.DateOnly(wr.ReportDate)+" · "+orDash(wr.EmployeeName)) {
+		<a href="/workreports" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	<div class="card max-w-3xl space-y-5 p-6">
+		<section>
+			<h3 class="mb-1 text-xs font-semibold uppercase tracking-widest text-warm-400">今日完成</h3>
+			<p class="whitespace-pre-wrap text-sm leading-6">{ orDash(wr.WorkDone) }</p>
+		</section>
+		<section>
+			<h3 class="mb-1 text-xs font-semibold uppercase tracking-widest text-warm-400">明日计划</h3>
+			<p class="whitespace-pre-wrap text-sm leading-6">{ orDash(wr.TomorrowPlan) }</p>
+		</section>
+		<section>
+			<h3 class="mb-1 text-xs font-semibold uppercase tracking-widest text-warm-400">问题与风险</h3>
+			<p class="whitespace-pre-wrap text-sm leading-6">{ orDash(wr.Issues) }</p>
+		</section>
+	</div>
+}
+
+templ PickingList(items []models.PickingOrder) {
+	@component.PageHead("分拣", "拣货单执行与完成。") {
+	}
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">分拣单号</th>
+					<th class="table-header">日期</th>
+					<th class="table-header">负责人</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, o := range items {
+					<tr class="transition-colors hover:bg-brand-50/30">
+						<td class="table-cell font-medium"><a href={ templ.URL("/picking/" + o.ID.String()) } class="hover:text-brand-600">{ o.PickingNo }</a></td>
+						<td class="table-cell text-warm-500">{ vmodel.DateOnly(o.OrderDate) }</td>
+						<td class="table-cell text-warm-500">{ orDash(o.AssignedTo) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(o.Status) }>{ vmodel.StatusLabel(o.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无分拣单", "", "", "")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ PickingDetail(o models.PickingOrder, items []models.PickingItem, errMsg string) {
+	@component.PageHead(o.PickingNo, vmodel.DateOnly(o.OrderDate)) {
+	}
+	@component.Alert(errMsg)
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(o.Status) }>{ vmodel.StatusLabel(o.Status) }</span>
+		<span class="flex-1"></span>
+		if o.Status != "completed" {
+			<form action={ templ.URL("/picking/" + o.ID.String() + "/complete") } method="post" onsubmit="return confirm('确认完成该分拣单吗？')">
+				<button type="submit" class="btn-primary !py-2 text-xs">完成分拣</button>
+			</form>
+		}
+	</div>
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">商品</th>
+					<th class="table-header text-right">应拣 / 实拣</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, it := range items {
+					<tr>
+						<td class="table-cell">
+							<span class="font-medium">{ orDash(it.ProductName) }</span>
+							<span class="ml-2 font-mono text-xs uppercase text-warm-400">{ it.ProductCode }</span>
+						</td>
+						<td class="table-cell text-right tnum">{ vmodel.Money(it.RequiredQuantity) } / { vmodel.Money(it.PickedQuantity) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(it.Status) }>{ vmodel.StatusLabel(it.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="3" class="table-cell py-8 text-center text-warm-400">暂无明细</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ AttendanceList(items []models.AttendanceRecord, date string, page int32, total int64, limit int) {
+	@component.PageHead("考勤打卡", "按日查看打卡记录。") {
+	}
+	<div class="card overflow-hidden">
+		<form action="/attendance" method="get" class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input type="date" name="date" value={ date } class="input-field md:w-48"/>
+			<button type="submit" class="btn-secondary !py-2 text-xs">查询</button>
+			if date != "" {
+				<a href="/attendance" class="btn-ghost text-xs">全部</a>
+			}
+		</form>
+		<div id="list">
+			@AttendanceListInner(items, date, page, total, limit)
+		</div>
+	</div>
+}
+
+templ AttendanceListInner(items []models.AttendanceRecord, date string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">员工</th>
+					<th class="table-header">打卡时间</th>
+					<th class="table-header">类型</th>
+					<th class="table-header">来源</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, r := range items {
+					<tr>
+						<td class="table-cell font-medium">{ orDash(r.EmployeeName) } <span class="ml-2 font-mono text-xs text-warm-400">{ r.EmployeeCode }</span></td>
+						<td class="table-cell tnum text-warm-500">{ vmodel.DateTime(r.CheckInTime) }</td>
+						<td class="table-cell text-warm-500">{ vmodel.StatusLabel(r.CheckType) }</td>
+						<td class="table-cell text-xs text-warm-400">{ orDash(r.Source) }</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无打卡记录", "", "", "")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination("/attendance?date="+date, page, total, limit)
+}

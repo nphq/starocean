@@ -1,0 +1,405 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/nphq/starocean/internal/ledger"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ LedgerCockpit(year int, years []int, periods []ledger.Period, errMsg string) {
+	@component.PageHead("总账结账", "会计期间开关与结账。") {
+	}
+	@component.Alert(errMsg)
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-2 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			for _, y := range years {
+				<a
+					href={ templ.URL("/ledger?year=" + vmodel.Itoa(y)) }
+					class={ "rounded-md px-3 py-1.5 text-xs font-medium tnum", templ.KV("bg-brand-600 text-white", y == year), templ.KV("text-warm-500 hover:bg-warm-100", y != year) }
+				>{ vmodel.Itoa(y) } 年</a>
+			}
+		</div>
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">期间</th>
+					<th class="table-header">起止</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, p := range periods {
+					<tr>
+						<td class="table-cell font-medium tnum">{ vmodel.Itoa(p.Year) } 年 { vmodel.Itoa(p.Month) } 月</td>
+						<td class="table-cell text-xs text-warm-500">{ p.StartDate } ~ { p.EndDate }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(p.Status) }>{ vmodel.StatusLabel(p.Status) }</span></td>
+					</tr>
+				}
+				if len(periods) == 0 {
+					<tr><td colspan="3" class="table-cell py-8 text-center text-warm-400">暂无期间数据</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	<p class="mt-3 text-xs text-warm-400">结账 / 反结账等高风险操作请使用 API 或联系管理员（期初页面规划中）。</p>
+}
+
+templ LedgerAccountList(accounts []ledger.Account, q string) {
+	@component.PageHead("会计科目", "") {
+	}
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索编码 / 名称…"
+				hx-get="/ledger/accounts" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+		</div>
+		<div id="list">
+			@LedgerAccountInner(accounts, q)
+		</div>
+	</div>
+}
+
+templ LedgerAccountInner(accounts []ledger.Account, q string) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">编码</th>
+					<th class="table-header">名称</th>
+					<th class="table-header">类别</th>
+					<th class="table-header">余额方向</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, a := range accounts {
+					<tr class="transition-colors hover:bg-warm-50/50">
+						<td class="table-cell font-mono font-medium">{ a.Code }</td>
+						<td class="table-cell">{ a.Name }</td>
+						<td class="table-cell text-warm-500">{ vmodel.StatusLabel(a.Category) }</td>
+						<td class="table-cell text-warm-500">{ directLabel(a.NormalSide) }</td>
+					</tr>
+				}
+				if len(accounts) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无科目", "", "", "")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+func directLabel(side string) string {
+	if side == "credit" {
+		return "贷"
+	}
+	return "借"
+}
+
+templ LedgerVoucherList(items []ledger.Voucher, q, status string, page int32, total int64, limit int) {
+	@component.PageHead("会计凭证", "") {
+		<a href="/ledger/vouchers/new" class="btn-primary">新增凭证</a>
+	}
+	<div class="card overflow-hidden">
+		<div class="flex flex-wrap items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索凭证号 / 摘要…"
+				hx-get="/ledger/vouchers" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+			<div class="flex gap-1">
+				for _, s := range []string{"all", "draft", "posted"} {
+					<a
+						href={ templ.URL("/ledger/vouchers?status=" + s) }
+						hx-get={ "/ledger/vouchers?status=" + s } hx-target="#list" hx-swap="innerHTML" hx-push-url="true"
+						class={ "rounded-md px-3 py-1.5 text-xs font-medium", templ.KV("bg-brand-600 text-white", s == status), templ.KV("text-warm-500 hover:bg-warm-100", s != status) }
+					>{ voucherStatusTab(s) }</a>
+				}
+			</div>
+		</div>
+		<div id="list">
+			@LedgerVoucherInner(items, q, status, page, total, limit)
+		</div>
+	</div>
+}
+
+func voucherStatusTab(s string) string {
+	switch s {
+	case "draft":
+		return "草稿"
+	case "posted":
+		return "已过账"
+	default:
+		return "全部"
+	}
+}
+
+templ LedgerVoucherInner(items []ledger.Voucher, q, status string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">凭证号</th>
+					<th class="table-header">日期</th>
+					<th class="table-header">摘要</th>
+					<th class="table-header text-right">借 / 贷</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, v := range items {
+					<tr class="transition-colors hover:bg-brand-50/30">
+						<td class="table-cell font-medium"><a href={ templ.URL("/ledger/vouchers/" + v.ID.String()) } class="hover:text-brand-600">{ v.VoucherNo }</a></td>
+						<td class="table-cell text-warm-500">{ v.VoucherDate }</td>
+						<td class="table-cell text-warm-600">{ orDash(v.Summary) }</td>
+						<td class="table-cell text-right tnum">{ vmodel.Money(v.DebitTotal) } / { vmodel.Money(v.CreditTotal) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(v.Status) }>{ vmodel.StatusLabel(v.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="5">@component.Empty("暂无凭证", "", "/ledger/vouchers/new", "新增凭证")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination("/ledger/vouchers?status="+status+"&q="+q, page, total, limit)
+}
+
+templ LedgerVoucherForm(accounts []ledger.Account, errMsg string) {
+	@component.PageHead("新增凭证", "借贷必须平衡，至少两行分录。") {
+		<a href="/ledger/vouchers" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-3xl p-6">
+		<form action="/ledger/vouchers" method="post" class="space-y-4">
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				@component.Field("voucher_date", "凭证日期", "", "date", "", false)
+				@component.Field("summary", "摘要", "", "text", "", false)
+			</div>
+			<table class="w-full">
+				<thead>
+					<tr>
+						<th class="table-header">科目</th>
+						<th class="table-header text-right">借方</th>
+						<th class="table-header text-right">贷方</th>
+					</tr>
+				</thead>
+				<tbody>
+					for i := 1; i <= 6; i++ {
+						<tr class="border-b border-warm-100 last:border-0 dark:border-warm-700/40">
+							<td class="px-2 py-2">
+								<select name={ "account_" + vmodel.Itoa(i) } class="select-field">
+									<option value="">—</option>
+									for _, a := range accounts {
+										<option value={ a.Code }>{ a.Code } { a.Name }</option>
+									}
+								</select>
+							</td>
+							<td class="px-2 py-2"><input type="text" name={ "debit_" + vmodel.Itoa(i) } inputmode="decimal" placeholder="0.00" class="input-field text-right tnum"/></td>
+							<td class="px-2 py-2"><input type="text" name={ "credit_" + vmodel.Itoa(i) } inputmode="decimal" placeholder="0.00" class="input-field text-right tnum"/></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+			<button type="submit" class="btn-primary">保存草稿凭证</button>
+		</form>
+	</div>
+}
+
+templ LedgerVoucherDetail(v ledger.Voucher, errMsg string) {
+	@component.PageHead(v.VoucherNo, v.VoucherDate) {
+		<a href="/ledger/vouchers" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(v.Status) }>{ vmodel.StatusLabel(v.Status) }</span>
+		<span class="tnum text-sm text-warm-500">借 { vmodel.Money(v.DebitTotal) } · 贷 { vmodel.Money(v.CreditTotal) }</span>
+		<span class="flex-1"></span>
+		if v.Status == "draft" {
+			<form action={ templ.URL("/ledger/vouchers/" + v.ID.String() + "/post") } method="post" onsubmit="return confirm('过账后不可修改，继续吗？')">
+				<button type="submit" class="btn-primary !py-2 text-xs">过账</button>
+			</form>
+		}
+	</div>
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">#</th>
+					<th class="table-header">科目</th>
+					<th class="table-header">摘要</th>
+					<th class="table-header text-right">借方</th>
+					<th class="table-header text-right">贷方</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, l := range v.Lines {
+					<tr>
+						<td class="table-cell tnum text-warm-400">{ strconv.Itoa(l.LineNo) }</td>
+						<td class="table-cell font-mono">{ l.AccountCode } <span class="font-sans text-warm-500">{ l.AccountName }</span></td>
+						<td class="table-cell text-warm-500">{ orDash(l.Summary) }</td>
+						<td class="table-cell text-right tnum">{ vmodel.Money(l.Debit) }</td>
+						<td class="table-cell text-right tnum">{ vmodel.Money(l.Credit) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ LedgerBooks(year, month int, trial ledger.TrialBalanceResult) {
+	@component.PageHead("账簿", "试算平衡表（末级科目）。") {
+		<a href={ templ.URL("/ledger/books?year=" + vmodel.Itoa(year) + "&month=" + vmodel.Itoa(month)) } class="btn-ghost text-xs">刷新</a>
+	}
+	@PeriodTabs("/ledger/books", year, month)
+	<div class="card overflow-hidden">
+		<div class="border-b border-warm-100 px-6 py-3 text-sm dark:border-warm-700/40">
+			if trial.Balanced {
+				<span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">试算平衡</span>
+			} else {
+				<span class="badge bg-rose-50 text-rose-700 border border-rose-200">试算不平衡</span>
+			}
+		</div>
+		<div class="scroll-thin overflow-x-auto">
+			<table class="table-sticky w-full">
+				<thead>
+					<tr>
+						<th class="table-header">科目</th>
+						<th class="table-header text-right">期初借</th>
+						<th class="table-header text-right">期初贷</th>
+						<th class="table-header text-right">本期借</th>
+						<th class="table-header text-right">本期贷</th>
+						<th class="table-header text-right">期末借</th>
+						<th class="table-header text-right">期末贷</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+					for _, r := range trial.Rows {
+						<tr>
+							<td class="table-cell font-mono">{ r.Code } <span class="font-sans">{ r.Name }</span></td>
+							<td class="table-cell text-right tnum">{ vmodel.MoneyStr(r.OpeningDebit) }</td>
+							<td class="table-cell text-right tnum">{ vmodel.MoneyStr(r.OpeningCredit) }</td>
+							<td class="table-cell text-right tnum">{ vmodel.MoneyStr(r.PeriodDebit) }</td>
+							<td class="table-cell text-right tnum">{ vmodel.MoneyStr(r.PeriodCredit) }</td>
+							<td class="table-cell text-right tnum font-semibold">{ vmodel.MoneyStr(r.EndDebit) }</td>
+							<td class="table-cell text-right tnum font-semibold">{ vmodel.MoneyStr(r.EndCredit) }</td>
+						</tr>
+					}
+					if len(trial.Rows) == 0 {
+						<tr><td colspan="7" class="table-cell py-8 text-center text-warm-400">该期间暂无发生额</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ LedgerReport(kind string, year, month int, st ledger.Statement) {
+	@component.PageHead(reportTitle(kind), st.Title) {
+		<div class="flex gap-1">
+			for _, k := range []struct{ v, l string }{{"balance", "资产负债表"}, {"income", "利润表"}, {"cashflow", "现金流量表"}} {
+				<a
+					href={ templ.URL("/ledger/reports?kind=" + k.v + "&year=" + vmodel.Itoa(year) + "&month=" + vmodel.Itoa(month)) }
+					class={ "rounded-md px-3 py-1.5 text-xs font-medium", templ.KV("bg-brand-600 text-white", k.v == kind), templ.KV("text-warm-500 hover:bg-warm-100", k.v != kind) }
+				>{ k.l }</a>
+			}
+		</div>
+	}
+	@PeriodTabs("/ledger/reports?kind="+kind, year, month)
+	<div class="card max-w-3xl overflow-hidden">
+		<table class="w-full">
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, l := range st.Lines {
+					<tr>
+						<td class="table-cell" style={ "padding-left:" + indentPx(l.Indent) }>
+							if l.Bold {
+								<strong>{ l.Label }</strong>
+							} else {
+								{ l.Label }
+							}
+						</td>
+						<td class="table-cell text-right tnum font-semibold">{ vmodel.MoneyStr(l.Amount) }</td>
+					</tr>
+				}
+				if len(st.Lines) == 0 {
+					<tr><td class="table-cell py-8 text-center text-warm-400">暂无数据</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+func reportTitle(kind string) string {
+	switch kind {
+	case "income":
+		return "利润表"
+	case "cashflow":
+		return "现金流量表"
+	default:
+		return "资产负债表"
+	}
+}
+
+func indentPx(indent int) string {
+	return strconv.Itoa(24+indent*16) + "px"
+}
+
+// PeriodTabs 年月切换（最近 6 个月）。
+templ PeriodTabs(base string, year, month int) {
+	<div class="mb-4 flex flex-wrap gap-1.5">
+		for _, ym := range last6Months(year, month) {
+			<a
+				href={ templ.URL(periodURL(base, ym.Y, ym.M)) }
+				class={ "rounded-md px-3 py-1.5 text-xs font-medium tnum", templ.KV("bg-brand-600 text-white", ym.Y == year && ym.M == month), templ.KV("border border-warm-200 text-warm-500 hover:bg-warm-50", ym.Y != year || ym.M != month) }
+			>{ vmodel.Itoa(ym.Y) }-{ twoDigits(ym.M) }</a>
+		}
+	</div>
+}
+
+type YM struct {
+	Y int
+	M int
+}
+
+func last6Months(year, month int) []YM {
+	out := make([]YM, 0, 6)
+	for i := 5; i >= 0; i-- {
+		y, m := shiftMonth(year, month, -i)
+		out = append(out, YM{Y: y, M: m})
+	}
+	return out
+}
+
+func periodURL(base string, y, m int) string {
+	sep := "?"
+	for i := 0; i < len(base); i++ {
+		if base[i] == '?' {
+			sep = "&"
+			break
+		}
+	}
+	return base + sep + "year=" + vmodel.Itoa(y) + "&month=" + vmodel.Itoa(m)
+}
+
+func shiftMonth(year, month, delta int) (int, int) {
+	m := month + delta
+	y := year
+	for m < 1 {
+		m += 12
+		y--
+	}
+	for m > 12 {
+		m -= 12
+		y++
+	}
+	return y, m
+}
+
+func twoDigits(m int) string {
+	if m < 10 {
+		return "0" + strconv.Itoa(m)
+	}
+	return strconv.Itoa(m)
+}

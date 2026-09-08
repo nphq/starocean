@@ -1,0 +1,262 @@
+package layout
+
+templ PrintLayout(title, companyName string) {
+	<!DOCTYPE html>
+	<html lang="zh-CN">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } · { companyName }</title>
+			<link rel="icon" type="image/png" href="/static/icon.png"/>
+			<style>
+				* { margin: 0; padding: 0; box-sizing: border-box; }
+				body {
+					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+					font-size: 14px;
+					color: #1c1917;
+					background: #f5f1ee;
+				}
+				.no-print { }
+				@media print {
+					.no-print { display: none !important; }
+					@page { size: A4; margin: 12mm 15mm; }
+					body { background: #fff; }
+				}
+				@media screen {
+					.print-page {
+						width: 210mm;
+						min-height: 297mm;
+						margin: 20px auto;
+						background: #fff;
+						padding: 12mm 15mm;
+						box-shadow: 0 2px 24px rgba(0,0,0,0.12);
+					}
+				}
+				@media print {
+					.print-page {
+						width: 100%;
+						min-height: auto;
+						margin: 0;
+						padding: 0;
+						box-shadow: none;
+					}
+				}
+				.print-header {
+					border-bottom: 1px solid #292524;
+					padding-bottom: 8px;
+					margin-bottom: 16px;
+					display: flex;
+					justify-content: space-between;
+					align-items: flex-end;
+				}
+				.print-header .company { font-size: 16px; font-weight: 700; color: #1c1917; display: flex; align-items: center; gap: 8px; }
+				.print-header .company img { width: 28px; height: 28px; border-radius: 6px; }
+				.print-header .time { font-size: 11px; color: #78716c; }
+				.print-title {
+					text-align: center;
+					font-size: 20px;
+					font-weight: 700;
+					letter-spacing: 8px;
+					margin: 20px 0 16px;
+					color: #1c1917;
+				}
+				.print-info {
+					display: grid;
+					grid-template-columns: 1fr 1fr;
+					gap: 6px 32px;
+					margin-bottom: 16px;
+					font-size: 13px;
+				}
+				.print-info .label { color: #78716c; }
+				.print-info .value { color: #1c1917; font-weight: 500; }
+				.print-table {
+					width: 100%;
+					border-collapse: collapse;
+					margin-bottom: 16px;
+				}
+				.print-table th, .print-table td {
+					border: 1px solid #a8a29e;
+					padding: 6px 8px;
+					font-size: 12px;
+				}
+				.print-table th {
+					background: #f5f1ee;
+					font-weight: 600;
+					text-align: center;
+				}
+				.print-table td { text-align: left; }
+				.print-table td.num { text-align: right; }
+				.print-table td.center { text-align: center; }
+				.print-total {
+					text-align: right;
+					font-size: 16px;
+					font-weight: 700;
+					margin-bottom: 16px;
+					padding-right: 4px;
+				}
+				.print-total .total-label { color: #78716c; font-weight: 500; margin-right: 8px; }
+				.print-notes {
+					background: #f5f1ee;
+					border-radius: 4px;
+					padding: 8px 12px;
+					margin-bottom: 16px;
+					font-size: 12px;
+					color: #57534e;
+				}
+				.print-notes .notes-label { font-weight: 600; color: #1c1917; }
+				.print-signature {
+					display: grid;
+					grid-template-columns: 1fr 1fr 1fr;
+					gap: 16px;
+					margin-top: 32px;
+					text-align: center;
+				}
+				.print-signature.two-col {
+					grid-template-columns: 1fr 1fr;
+				}
+				.print-signature .sig-item { }
+				.print-signature .sig-line {
+					border-bottom: 1px solid #292524;
+					margin-bottom: 6px;
+					padding-top: 28px;
+				}
+				.print-signature .sig-label {
+					font-size: 12px;
+					color: #57534e;
+				}
+				.print-footer {
+					position: fixed;
+					bottom: 0;
+					left: 0;
+					right: 0;
+					text-align: center;
+					font-size: 11px;
+					color: #a8a29e;
+					padding: 4px 0;
+					border-top: 1px solid #e7e5e4;
+				}
+				@media print {
+					.print-footer {
+						position: fixed;
+						bottom: 0;
+					}
+				}
+				@media screen {
+					.print-footer {
+						position: relative;
+						margin-top: 24px;
+					}
+				}
+				.btn-bar {
+					display: flex;
+					justify-content: center;
+					gap: 12px;
+					margin-bottom: 20px;
+				}
+				.btn-bar button, .btn-bar a {
+					display: inline-flex;
+					align-items: center;
+					gap: 6px;
+					padding: 8px 20px;
+					border: 1px solid #d6d3d1;
+					border-radius: 8px;
+					background: #fff;
+					color: #57534e;
+					font-size: 14px;
+					font-weight: 500;
+					cursor: pointer;
+					text-decoration: none;
+					transition: background 0.15s, border-color 0.15s;
+				}
+				.btn-bar button:hover, .btn-bar a:hover {
+					background: #f5f1ee;
+					border-color: #a8a29e;
+				}
+				.btn-bar .btn-print {
+					background: #1c1917;
+					color: #fff;
+					border-color: #1c1917;
+				}
+				.btn-bar .btn-print:hover { background: #292524; }
+				.invoice-amounts {
+					display: grid;
+					grid-template-columns: 1fr 1fr;
+					gap: 8px 32px;
+					margin-bottom: 16px;
+					font-size: 14px;
+				}
+				.invoice-amounts .inv-line {
+					display: flex;
+					justify-content: space-between;
+					padding: 6px 0;
+					border-bottom: 1px solid #e7e5e4;
+				}
+				.invoice-amounts .inv-line .inv-label { color: #78716c; }
+				.invoice-amounts .inv-line .inv-value { font-weight: 600; }
+				.invoice-amounts .inv-total {
+					grid-column: 1 / -1;
+					display: flex;
+					justify-content: space-between;
+					padding: 10px 0;
+					font-size: 18px;
+					font-weight: 700;
+					border-top: 2px solid #292524;
+					margin-top: 4px;
+				}
+				.sub-table-title {
+					font-size: 14px;
+					font-weight: 600;
+					color: #1c1917;
+					margin-bottom: 8px;
+					padding-bottom: 4px;
+					border-bottom: 1px solid #d6d3d1;
+				}
+				.print-summary {
+					margin: 16px 0;
+				}
+				.print-summary .summary-line {
+					display: flex;
+					justify-content: space-between;
+					max-width: 300px;
+					margin-left: auto;
+					padding: 4px 0;
+					font-size: 13px;
+				}
+				.print-summary .summary-line .sl { color: #78716c; }
+				.print-summary .summary-line .sv { font-weight: 600; }
+				.print-summary .summary-line.total {
+					font-size: 16px;
+					font-weight: 700;
+					border-top: 1px solid #a8a29e;
+					padding-top: 8px;
+					margin-top: 4px;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="no-print btn-bar">
+				<button class="btn-print" onclick="window.print()">
+					<svg style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m0 0a48.159 48.159 0 0 1 10.5 0m-10.5 0V5.625c0-.621.504-1.125 1.125-1.125h8.25c.621 0 1.125.504 1.125 1.125v2.034"/></svg>
+					打印
+				</button>
+				<button onclick="window.close()">
+					<svg style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+					关闭
+				</button>
+			</div>
+			<div class="print-page">
+				<div class="print-header">
+					<span class="company"><img src="/static/icon.png" alt="" width="28" height="28"/>{ companyName }</span>
+					<span class="time" id="printTime"></span>
+				</div>
+				{ children... }
+				<div class="print-footer">
+					{ companyName } · <span class="page">第 <span id="pageNum">1</span> 页</span>
+				</div>
+			</div>
+			<script>
+				document.getElementById("printTime").textContent = new Date().toLocaleString("zh-CN", {hour12:false});
+			</script>
+		</body>
+	</html>
+}

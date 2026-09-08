@@ -1,0 +1,73 @@
+package print
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/layout"
+)
+
+func invoiceTypeName(t string) string {
+	switch t {
+	case "output":
+		return "销项发票"
+	case "input":
+		return "进项发票"
+	default:
+		return t
+	}
+}
+
+func invoiceStatusName(s string) string {
+	switch s {
+	case "normal":
+		return "正常"
+	case "void":
+		return "已作废"
+	default:
+		return s
+	}
+}
+
+templ InvoicePrint(invoice models.Invoice, companyName string) {
+	@layout.PrintLayout("发票", companyName) {
+		<div class="print-title">发 票</div>
+		<div class="print-info">
+			<div><span class="label">发票号码：</span><span class="value">{ invoice.InvoiceNo }</span></div>
+			<div><span class="label">发票代码：</span><span class="value">
+				if invoice.InvoiceCode != "" {
+					{ invoice.InvoiceCode }
+				} else {
+					-
+				}
+			</span></div>
+			<div><span class="label">发票类型：</span><span class="value">{ invoiceTypeName(invoice.Type) }</span></div>
+			<div><span class="label">往来方：</span><span class="value">{ invoice.PartnerName }</span></div>
+			<div><span class="label">开票日期：</span><span class="value">
+				if invoice.InvoiceDate != nil {
+					{ invoice.InvoiceDate.Format("2006-01-02") }
+				} else {
+					-
+				}
+			</span></div>
+			<div><span class="label">状　　态：</span><span class="value">{ invoiceStatusName(invoice.InvoiceStatus) }</span></div>
+		</div>
+
+		<div class="invoice-amounts">
+			<div class="inv-line">
+				<span class="inv-label">不含税金额</span>
+				<span class="inv-value">¥{ invoice.Amount.StringFixed(2) }</span>
+			</div>
+			<div class="inv-line">
+				<span class="inv-label">税率</span>
+				<span class="inv-value">{ invoice.TaxRate.StringFixed(2) }%</span>
+			</div>
+			<div class="inv-line">
+				<span class="inv-label">税额</span>
+				<span class="inv-value">¥{ invoice.TaxAmount.StringFixed(2) }</span>
+			</div>
+			<div class="inv-total">
+				<span>价税合计</span>
+				<span>¥{ invoice.TotalAmount.StringFixed(2) }</span>
+			</div>
+		</div>
+	}
+}

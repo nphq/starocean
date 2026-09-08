@@ -1,0 +1,58 @@
+package pages
+
+import "github.com/nphq/starocean/view/component"
+
+type SearchHit struct {
+	ID    string
+	Title string
+	Sub   string
+}
+
+type SearchResults struct {
+	Query     string
+	Products  []SearchHit
+	Customers []SearchHit
+	Suppliers []SearchHit
+	Sales     []SearchHit
+	Purchases []SearchHit
+}
+
+func (r SearchResults) Empty() bool {
+	return len(r.Products) == 0 && len(r.Customers) == 0 && len(r.Suppliers) == 0 && len(r.Sales) == 0 && len(r.Purchases) == 0
+}
+
+templ Search(r SearchResults) {
+	@component.PageHead("搜索", "关键词："+r.Query) {
+	}
+	if r.Query == "" {
+		@component.Empty("请输入关键词", "在顶栏搜索框输入单据号、商品、客户名称。", "", "")
+	} else if r.Empty() {
+		@component.Empty("未找到匹配结果", "换个关键词试试。", "", "")
+	} else {
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+			@searchGroup("商品", "/products/", r.Products)
+			@searchGroup("客户", "/customers/", r.Customers)
+			@searchGroup("供应商", "/suppliers/", r.Suppliers)
+			@searchGroup("销售订单", "/sales/", r.Sales)
+			@searchGroup("采购订单", "/purchases/", r.Purchases)
+		</div>
+	}
+}
+
+templ searchGroup(label, base string, hits []SearchHit) {
+	if len(hits) > 0 {
+		<div class="card overflow-hidden">
+			<div class="border-b border-warm-200 px-6 py-3 text-xs font-semibold uppercase tracking-widest text-warm-400 dark:border-warm-700/60">{ label }</div>
+			<div class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, hit := range hits {
+					<a href={ templ.URL(base + hit.ID) } class="flex items-center justify-between gap-3 px-6 py-2.5 transition-colors hover:bg-warm-50 dark:hover:bg-warm-800/50">
+						<span class="truncate text-sm font-medium">{ hit.Title }</span>
+						if hit.Sub != "" {
+							<span class="flex-shrink-0 truncate text-xs text-warm-400">{ hit.Sub }</span>
+						}
+					</a>
+				}
+			</div>
+		</div>
+	}
+}

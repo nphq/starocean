@@ -1,0 +1,179 @@
+package pages
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+// CustomerList 客户列表。
+templ CustomerList(items []models.Customer, q string, page int32, total int64, limit int) {
+	@component.PageHead("客户管理", "客户档案、联系人及信用额度。") {
+		<a href="/customers/new" class="btn-primary">新增客户</a>
+	}
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索名称 / 编码 / 电话…"
+				hx-get="/customers" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+		</div>
+		<div id="list">
+			@CustomerListInner(items, q, page, total, limit)
+		</div>
+	</div>
+}
+
+templ CustomerListInner(items []models.Customer, q string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">客户</th>
+					<th class="table-header">联系人</th>
+					<th class="table-header text-right">信用额度</th>
+					<th class="table-header text-right">当前欠款</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, cu := range items {
+					<tr class="transition-colors hover:bg-brand-50/30 dark:hover:bg-warm-800/30">
+						<td class="table-cell">
+							<a href={ templ.URL("/customers/" + cu.ID.String()) } class="font-semibold text-warm-900 hover:text-brand-600 dark:text-warm-100">{ cu.Name }</a>
+							<div class="mt-0.5 font-mono text-xs uppercase text-warm-400">{ cu.Code }</div>
+						</td>
+						<td class="table-cell text-warm-600 dark:text-warm-400">{ contactLine(cu.ContactPerson, cu.Phone) }</td>
+						<td class="table-cell text-right tnum">{ vmodel.Money(cu.CreditLimit) }</td>
+						<td class="table-cell text-right tnum font-semibold">{ vmodel.Money(cu.Balance) }</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无客户", "录入您的第一个客户吧。", "/customers/new", "新增客户")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination(listBase("/customers", q), page, total, limit)
+}
+
+func contactLine(name, phone string) string {
+	if name == "" && phone == "" {
+		return "—"
+	}
+	if name == "" {
+		return phone
+	}
+	if phone == "" {
+		return name
+	}
+	return name + " · " + phone
+}
+
+// CustomerDetail 客户详情 + 历史订单。
+templ CustomerDetail(cu models.Customer, orders []models.SalesOrder, errMsg string) {
+	@component.PageHead(cu.Name, "编码 "+cu.Code) {
+		<a href={ templ.URL("/customers/" + cu.ID.String() + "/edit") } class="btn-secondary">编辑</a>
+	}
+	@component.Alert(errMsg)
+	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<div class="card overflow-hidden lg:col-span-1">
+			<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				@component.DlRow("联系人", orDash(cu.ContactPerson))
+				@component.DlRow("电话", orDash(cu.Phone))
+				@component.DlRow("邮箱", orDash(cu.Email))
+				@component.DlRow("地址", orDash(cu.Address))
+				@component.DlRow("信用额度", vmodel.Money(cu.CreditLimit))
+				@component.DlRow("当前欠款", vmodel.Money(cu.Balance))
+			</dl>
+			<form action={ templ.URL("/customers/" + cu.ID.String() + "/delete") } method="post" class="p-4" onsubmit="return confirm('确定删除该客户吗？存在关联订单时将拒绝删除。')">
+				<button type="submit" class="btn-danger w-full">删除客户</button>
+			</form>
+		</div>
+		<div class="card overflow-hidden lg:col-span-2">
+			<div class="border-b border-warm-200 px-6 py-4 dark:border-warm-700/60">
+				<h3 class="font-semibold text-warm-900 dark:text-warm-100">历史销售订单</h3>
+			</div>
+			<table class="w-full">
+				<thead>
+					<tr>
+						<th class="table-header">订单号</th>
+						<th class="table-header text-right">金额</th>
+						<th class="table-header">状态</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+					for _, o := range orders {
+						<tr class="transition-colors hover:bg-warm-50/50">
+							<td class="table-cell font-medium"><a href={ templ.URL("/sales/" + o.ID.String()) } class="hover:text-brand-600">{ o.OrderNo }</a></td>
+							<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(o.TotalAmount) }</td>
+							<td class="table-cell"><span class={ "badge", vmodel.StatusClass(o.Status) }>{ vmodel.StatusLabel(o.Status) }</span></td>
+						</tr>
+					}
+					if len(orders) == 0 {
+						<tr><td colspan="3" class="table-cell py-8 text-center text-warm-400">暂无订单</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+// CustomerForm 新增/编辑表单。
+templ CustomerForm(cu *models.Customer, errMsg string) {
+	@component.PageHead(custFormTitle(cu), "") {
+		<a href="/customers" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action={ custFormAction(cu) } method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			if cu == nil {
+				@component.Field("code", "编码（留空自动生成）", "", "text", "如 C0001", false)
+			}
+			@component.Field("name", "名称", custVal(cu, "name"), "text", "客户名称", true)
+			@component.Field("contact_person", "联系人", custVal(cu, "contact"), "text", "", false)
+			@component.Field("phone", "电话", custVal(cu, "phone"), "text", "", false)
+			@component.Field("email", "邮箱", custVal(cu, "email"), "text", "", false)
+			@component.Field("address", "地址", custVal(cu, "address"), "text", "", false)
+			if cu == nil {
+				@component.Field("credit_limit", "信用额度", "0", "text", "0 = 不限", false)
+			}
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存</button>
+			</div>
+		</form>
+	</div>
+}
+
+func custFormTitle(cu *models.Customer) string {
+	if cu != nil {
+		return "编辑客户"
+	}
+	return "新增客户"
+}
+
+func custFormAction(cu *models.Customer) templ.SafeURL {
+	if cu == nil {
+		return templ.URL("/customers")
+	}
+	return templ.URL("/customers/" + cu.ID.String())
+}
+
+func custVal(cu *models.Customer, f string) string {
+	if cu == nil {
+		return ""
+	}
+	switch f {
+	case "name":
+		return cu.Name
+	case "contact":
+		return cu.ContactPerson
+	case "phone":
+		return cu.Phone
+	case "email":
+		return cu.Email
+	case "address":
+		return cu.Address
+	}
+	return ""
+}

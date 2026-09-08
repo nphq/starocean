@@ -1,0 +1,39 @@
+version: "2"
+
+# StarOcean golangci-lint 配置
+# 原则: 启用 Rust 级正确性检查 (errcheck/ineffassign/staticcheck/unused)；
+# 对"安全习惯"模式 (defer Close/Rollback) 与测试代码的故意忽略做显式豁免，
+# 保证 lint 结论只反映真实问题, 不产生噪音。
+
+run:
+  timeout: 3m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      exclude-functions:
+        # defer rows.Close() / file.Close() 是约定俗成模式
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*os.File).Close
+        # defer tx.Rollback() 由 commit 负责错误，回滚后无可回收资源
+        - (*database/sql.Tx).Rollback
+        # 打印模板: Write 到 c.Writer 的错误不可恢复
+        - (github.com/a-h/templ).Component.Render
+
+  exclusions:
+    rules:
+    # 测试代码故意忽略错误（清理/夹具语句）
+    - path: _test\.go
+      linters:
+        - errcheck
+    # 种子数据脚本: 种子失败应整体流程可见，逐条忽略属刻意设计
+    - path: internal/db/seed\.go
+      linters:
+        - errcheck

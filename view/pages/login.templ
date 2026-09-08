@@ -1,0 +1,45 @@
+package pages
+
+type LoginView struct {
+	Next  string
+	Error string
+}
+
+templ Login(v LoginView, companyName string) {
+	<!DOCTYPE html>
+	<html lang="zh-CN">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>登录 · { companyName }</title>
+			<link rel="icon" type="image/png" href="/static/icon.png"/>
+			<link rel="stylesheet" href="/static/css/output.css"/>
+		</head>
+		<body class="flex min-h-screen items-center justify-center bg-warm-50 px-4 dark:bg-warm-900">
+			<div class="card w-full max-w-sm p-8">
+				<div class="mb-6 flex items-center gap-3">
+					<img src="/static/icon.png" alt="" width="40" height="40" class="h-10 w-10 rounded-lg shadow-sm"/>
+					<div>
+						<h1 class="text-lg font-semibold text-warm-900 dark:text-warm-100">{ companyName }</h1>
+						<p class="text-xs text-warm-400">轻量 ERP · 登录后继续</p>
+					</div>
+				</div>
+				if v.Error != "" {
+					<div class="mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-600 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-400">{ v.Error }</div>
+				}
+				<form action="/login" method="post" class="space-y-4">
+					<input type="hidden" name="next" value={ v.Next }/>
+					<label class="block">
+						<span class="mb-1 block text-xs font-medium text-warm-500">用户名</span>
+						<input type="text" name="username" autocomplete="username" required autofocus class="input-field"/>
+					</label>
+					<label class="block">
+						<span class="mb-1 block text-xs font-medium text-warm-500">密码</span>
+						<input type="password" name="password" autocomplete="current-password" required class="input-field"/>
+					</label>
+					<button type="submit" class="btn-primary w-full">登录</button>
+				</form>
+			</div>
+		</body>
+	</html>
+}

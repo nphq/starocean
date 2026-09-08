@@ -1,0 +1,236 @@
+package pages
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ ReimbursementList(items []models.Reimbursement) {
+	@component.PageHead("费用报销", "申请 → 提交 → 审批 → 付款。") {
+		<a href="/finance/reimbursements/new" class="btn-primary">新建报销单</a>
+	}
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">单号</th>
+					<th class="table-header">申请人</th>
+					<th class="table-header text-right">金额</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, r := range items {
+					<tr class="transition-colors hover:bg-brand-50/30">
+						<td class="table-cell font-medium"><a href={ templ.URL("/finance/reimbursements/" + r.ID.String()) } class="hover:text-brand-600">{ r.ReimbursementNo }</a></td>
+						<td class="table-cell text-warm-600">{ orDash(r.ApplicantName) }</td>
+						<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(r.Amount) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(r.Status) }>{ vmodel.StatusLabel(r.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无报销单", "", "/finance/reimbursements/new", "新建报销单")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ ReimbursementForm(errMsg string) {
+	@component.PageHead("新建报销单", "") {
+		<a href="/finance/reimbursements" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action="/finance/reimbursements" method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			@component.Field("applicant_name", "申请人", "", "text", "", true)
+			@component.Field("department", "部门", "", "text", "", false)
+			@component.Field("amount", "金额", "", "text", "如 500.00", true)
+			@component.Field("category", "类别", "", "text", "如 差旅 / 办公", false)
+			@component.Field("expense_date", "费用日期", "", "date", "", false)
+			<div class="md:col-span-2">
+				@component.TextArea("description", "事由", "", "")
+			</div>
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存草稿</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ ReimbursementDetail(r models.Reimbursement, errMsg string) {
+	@component.PageHead(r.ReimbursementNo, orDash(r.ApplicantName)) {
+	}
+	@component.Alert(errMsg)
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(r.Status) }>{ vmodel.StatusLabel(r.Status) }</span>
+		<span class="tnum text-sm text-warm-500">{ vmodel.Money(r.Amount) }</span>
+		<span class="flex-1"></span>
+		if r.Status == "draft" {
+			<form action={ templ.URL("/finance/reimbursements/" + r.ID.String() + "/submit") } method="post">
+				<button type="submit" class="btn-primary !py-2 text-xs">提交审批</button>
+			</form>
+		}
+		if r.Status == "pending_approval" {
+			<form action={ templ.URL("/finance/reimbursements/" + r.ID.String() + "/approve") } method="post">
+				<button type="submit" class="btn-primary !py-2 text-xs">审批通过</button>
+			</form>
+		}
+		if r.Status == "approved" {
+			<form action={ templ.URL("/finance/reimbursements/" + r.ID.String() + "/pay") } method="post" onsubmit="return confirm('确认付款吗？')">
+				<button type="submit" class="btn-primary !py-2 text-xs">付款</button>
+			</form>
+		}
+	</div>
+	<div class="card max-w-2xl overflow-hidden">
+		<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+			@component.DlRow("部门", orDash(r.Department))
+			@component.DlRow("类别", orDash(r.Category))
+			@component.DlRow("事由", orDash(r.Description))
+			@component.DlRow("审批人", orDash(r.ApproverName))
+		</dl>
+	</div>
+}
+
+templ InvoiceList(items []models.Invoice) {
+	@component.PageHead("发票管理", "") {
+		<a href="/finance/invoices/new" class="btn-primary">新建发票</a>
+	}
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">发票号</th>
+					<th class="table-header">往来方</th>
+					<th class="table-header text-right">金额</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, inv := range items {
+					<tr class="transition-colors hover:bg-brand-50/30">
+						<td class="table-cell font-medium"><a href={ templ.URL("/finance/invoices/" + inv.ID.String()) } class="hover:text-brand-600">{ inv.InvoiceNo }</a></td>
+						<td class="table-cell text-warm-600">{ orDash(inv.PartnerName) }</td>
+						<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(inv.TotalAmount) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(inv.InvoiceStatus) }>{ vmodel.StatusLabel(inv.InvoiceStatus) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无发票", "", "/finance/invoices/new", "新建发票")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ InvoiceForm(errMsg string) {
+	@component.PageHead("新建发票", "") {
+		<a href="/finance/invoices" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action="/finance/invoices" method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			@component.Field("invoice_no", "发票号码", "", "text", "", true)
+			<label class="block">
+				<span class="mb-1 block text-xs font-medium text-warm-500">类型</span>
+				<select name="type" class="select-field">
+					<option value="output">销项</option>
+					<option value="input">进项</option>
+				</select>
+			</label>
+			<label class="block">
+				<span class="mb-1 block text-xs font-medium text-warm-500">往来方类型</span>
+				<select name="partner_type" class="select-field">
+					<option value="customer">客户</option>
+					<option value="supplier">供应商</option>
+				</select>
+			</label>
+			@component.Field("partner_name", "往来方", "", "text", "", false)
+			@component.Field("amount", "金额", "", "text", "如 1000.00", true)
+			@component.Field("tax_rate", "税率", "0", "text", "如 0.13", false)
+			@component.Field("invoice_code", "发票代码", "", "text", "", false)
+			@component.Field("invoice_date", "开票日期", "", "date", "", false)
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存</button>
+			</div>
+		</form>
+	</div>
+}
+
+templ InvoiceDetail(inv models.Invoice, errMsg string) {
+	@component.PageHead(inv.InvoiceNo, orDash(inv.PartnerName)) {
+		<a href={ templ.URL("/finance/invoices/" + inv.ID.String() + "/print") } class="btn-secondary">打印</a>
+	}
+	@component.Alert(errMsg)
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(inv.InvoiceStatus) }>{ vmodel.StatusLabel(inv.InvoiceStatus) }</span>
+		<span class="flex-1"></span>
+		if inv.InvoiceStatus == "normal" {
+			<form action={ templ.URL("/finance/invoices/" + inv.ID.String() + "/void") } method="post" onsubmit="return confirm('确定作废该发票吗？')">
+				<button type="submit" class="btn-danger !py-2 text-xs">作废</button>
+			</form>
+		}
+	</div>
+	<div class="card max-w-2xl overflow-hidden">
+		<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+			@component.DlRow("金额", vmodel.Money(inv.Amount))
+			@component.DlRow("税额", vmodel.Money(inv.TaxAmount))
+			@component.DlRow("价税合计", vmodel.Money(inv.TotalAmount))
+			@component.DlRow("发票代码", orDash(inv.InvoiceCode))
+		</dl>
+	</div>
+}
+
+templ ReconciliationList(items []models.Reconciliation) {
+	@component.PageHead("对账管理", "往来对账单确认。") {
+	}
+	<div class="card overflow-hidden">
+		<table class="w-full">
+			<thead>
+				<tr>
+					<th class="table-header">对账单号</th>
+					<th class="table-header">往来方</th>
+					<th class="table-header text-right">差异</th>
+					<th class="table-header">状态</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, r := range items {
+					<tr class="transition-colors hover:bg-brand-50/30">
+						<td class="table-cell font-medium"><a href={ templ.URL("/finance/reconciliations/" + r.ID.String()) } class="hover:text-brand-600">{ r.ReconciliationNo }</a></td>
+						<td class="table-cell text-warm-600">{ orDash(r.PartnerName) }</td>
+						<td class="table-cell text-right tnum font-semibold">{ vmodel.Money(r.Discrepancy) }</td>
+						<td class="table-cell"><span class={ "badge", vmodel.StatusClass(r.Status) }>{ vmodel.StatusLabel(r.Status) }</span></td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="4">@component.Empty("暂无对账单", "", "", "")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ ReconciliationDetail(r models.Reconciliation) {
+	@component.PageHead(r.ReconciliationNo, orDash(r.PartnerName)) {
+		<a href={ templ.URL("/finance/reconciliations/" + r.ID.String() + "/print") } class="btn-secondary">打印</a>
+	}
+	<div class="mb-4 flex flex-wrap items-center gap-2">
+		<span class={ "badge !text-xs !px-2.5 !py-1", vmodel.StatusClass(r.Status) }>{ vmodel.StatusLabel(r.Status) }</span>
+		<span class="flex-1"></span>
+		if r.Status == "draft" {
+			<form action={ templ.URL("/finance/reconciliations/" + r.ID.String() + "/confirm") } method="post">
+				<button type="submit" class="btn-primary !py-2 text-xs">确认对账</button>
+			</form>
+		}
+	</div>
+	<div class="card max-w-2xl overflow-hidden">
+		<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+			@component.DlRow("账期", vmodel.DateOnly(r.PeriodStart)+" ~ "+vmodel.DateOnly(r.PeriodEnd))
+			@component.DlRow("订单总额", vmodel.Money(r.OrderTotal))
+			@component.DlRow("收付总额", vmodel.Money(r.PaymentTotal))
+			@component.DlRow("差异", vmodel.Money(r.Discrepancy))
+		</dl>
+	</div>
+}

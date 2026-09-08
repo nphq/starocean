@@ -1,0 +1,157 @@
+package pages
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/component"
+	"github.com/nphq/starocean/view/vmodel"
+)
+
+templ SupplierList(items []models.Supplier, q string, page int32, total int64, limit int) {
+	@component.PageHead("供应商", "供应商档案与往来。") {
+		<a href="/suppliers/new" class="btn-primary">新增供应商</a>
+	}
+	<div class="card overflow-hidden">
+		<div class="flex items-center gap-3 border-b border-warm-100 px-4 py-3 md:px-6 dark:border-warm-700/40">
+			<input
+				type="search" name="q" value={ q } placeholder="搜索名称 / 编码…"
+				hx-get="/suppliers" hx-target="#list" hx-swap="innerHTML" hx-push-url="true" hx-trigger="input changed delay:300ms, search"
+				class="input-field md:w-80"
+			/>
+		</div>
+		<div id="list">
+			@SupplierListInner(items, q, page, total, limit)
+		</div>
+	</div>
+}
+
+templ SupplierListInner(items []models.Supplier, q string, page int32, total int64, limit int) {
+	<div class="scroll-thin overflow-x-auto">
+		<table class="table-sticky w-full">
+			<thead>
+				<tr>
+					<th class="table-header">供应商</th>
+					<th class="table-header">联系人</th>
+					<th class="table-header text-right">应付余额</th>
+				</tr>
+			</thead>
+			<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				for _, s := range items {
+					<tr class="transition-colors hover:bg-brand-50/30 dark:hover:bg-warm-800/30">
+						<td class="table-cell">
+							<a href={ templ.URL("/suppliers/" + s.ID.String()) } class="font-semibold text-warm-900 hover:text-brand-600 dark:text-warm-100">{ s.Name }</a>
+							<div class="mt-0.5 font-mono text-xs uppercase text-warm-400">{ s.Code }</div>
+						</td>
+						<td class="table-cell text-warm-600 dark:text-warm-400">{ contactLine(s.ContactPerson, s.Phone) }</td>
+						<td class="table-cell text-right tnum font-semibold">{ vmodel.Money(s.Balance) }</td>
+					</tr>
+				}
+				if len(items) == 0 {
+					<tr><td colspan="3">@component.Empty("暂无供应商", "录入您的第一个供应商吧。", "/suppliers/new", "新增供应商")</td></tr>
+				}
+			</tbody>
+		</table>
+	</div>
+	@component.Pagination(listBase("/suppliers", q), page, total, limit)
+}
+
+templ SupplierDetail(s models.Supplier, orders []models.PurchaseOrder, errMsg string) {
+	@component.PageHead(s.Name, "编码 "+s.Code) {
+		<a href={ templ.URL("/suppliers/" + s.ID.String() + "/edit") } class="btn-secondary">编辑</a>
+	}
+	@component.Alert(errMsg)
+	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<div class="card overflow-hidden lg:col-span-1">
+			<dl class="divide-y divide-warm-100 dark:divide-warm-700/40">
+				@component.DlRow("联系人", orDash(s.ContactPerson))
+				@component.DlRow("电话", orDash(s.Phone))
+				@component.DlRow("邮箱", orDash(s.Email))
+				@component.DlRow("地址", orDash(s.Address))
+				@component.DlRow("应付余额", vmodel.Money(s.Balance))
+			</dl>
+			<form action={ templ.URL("/suppliers/" + s.ID.String() + "/delete") } method="post" class="p-4" onsubmit="return confirm('确定删除该供应商吗？存在关联订单时将拒绝删除。')">
+				<button type="submit" class="btn-danger w-full">删除供应商</button>
+			</form>
+		</div>
+		<div class="card overflow-hidden lg:col-span-2">
+			<div class="border-b border-warm-200 px-6 py-4 dark:border-warm-700/60">
+				<h3 class="font-semibold text-warm-900 dark:text-warm-100">历史采购订单</h3>
+			</div>
+			<table class="w-full">
+				<thead>
+					<tr>
+						<th class="table-header">订单号</th>
+						<th class="table-header text-right">金额</th>
+						<th class="table-header">状态</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-warm-100 dark:divide-warm-700/40">
+					for _, o := range orders {
+						<tr class="transition-colors hover:bg-warm-50/50">
+							<td class="table-cell font-medium"><a href={ templ.URL("/purchases/" + o.ID.String()) } class="hover:text-brand-600">{ o.OrderNo }</a></td>
+							<td class="table-cell text-right font-semibold tnum">{ vmodel.Money(o.TotalAmount) }</td>
+							<td class="table-cell"><span class={ "badge", vmodel.StatusClass(o.Status) }>{ vmodel.StatusLabel(o.Status) }</span></td>
+						</tr>
+					}
+					if len(orders) == 0 {
+						<tr><td colspan="3" class="table-cell py-8 text-center text-warm-400">暂无订单</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	</div>
+}
+
+templ SupplierForm(s *models.Supplier, errMsg string) {
+	@component.PageHead(suppFormTitle(s), "") {
+		<a href="/suppliers" class="btn-ghost text-xs">← 返回列表</a>
+	}
+	@component.Alert(errMsg)
+	<div class="card max-w-2xl p-6">
+		<form action={ suppFormAction(s) } method="post" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			if s == nil {
+				@component.Field("code", "编码（留空自动生成）", "", "text", "如 S0001", false)
+			}
+			@component.Field("name", "名称", suppVal(s, "name"), "text", "供应商名称", true)
+			@component.Field("contact_person", "联系人", suppVal(s, "contact"), "text", "", false)
+			@component.Field("phone", "电话", suppVal(s, "phone"), "text", "", false)
+			@component.Field("email", "邮箱", suppVal(s, "email"), "text", "", false)
+			@component.Field("address", "地址", suppVal(s, "address"), "text", "", false)
+			<div class="md:col-span-2">
+				<button type="submit" class="btn-primary">保存</button>
+			</div>
+		</form>
+	</div>
+}
+
+func suppFormTitle(s *models.Supplier) string {
+	if s != nil {
+		return "编辑供应商"
+	}
+	return "新增供应商"
+}
+
+func suppFormAction(s *models.Supplier) templ.SafeURL {
+	if s == nil {
+		return templ.URL("/suppliers")
+	}
+	return templ.URL("/suppliers/" + s.ID.String())
+}
+
+func suppVal(s *models.Supplier, f string) string {
+	if s == nil {
+		return ""
+	}
+	switch f {
+	case "name":
+		return s.Name
+	case "contact":
+		return s.ContactPerson
+	case "phone":
+		return s.Phone
+	case "email":
+		return s.Email
+	case "address":
+		return s.Address
+	}
+	return ""
+}

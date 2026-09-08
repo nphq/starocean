@@ -1,0 +1,53 @@
+# ───────────────────────────────────────────────────────────────────────────
+# starocean/StarOcean Lefthook — 前后端统一 Git Hooks
+#
+# 安装:  make hooks          （或 go install github.com/evilmartians/lefthook@latest && lefthook install）
+# 跳过:  LEFTHOOK=0 git commit -m "..."   /   LEFTHOOK=0 git push
+# 本地自定义: 创建 .lefthook-local.yml（已在 .gitignore 中），例如只关闭某个命令
+#
+# 覆盖范围:
+#   后端  — gofmt / go vet / golangci-lint(可选) / templ 生成一致性
+#   前端  — Tailwind 产物一致性
+#   推送  — 完整构建(make build) + 测试(go test)
+# ───────────────────────────────────────────────────────────────────────────
+
+min_version: 1.5.0
+
+# 提交前：格式、静态检查、生成物一致性
+pre-commit:
+  parallel: true
+  commands:
+    # ── 后端 ──────────────────────────────────────────────────────────────
+    gofmt:
+      glob: "*.go"
+      run: sh -c 'test -z "$(gofmt -l {staged_files})"'
+      fail_text: "gofmt 检查未通过，请运行: gofmt -w {staged_files}"
+
+    go-vet:
+      run: go vet ./...
+      fail_text: "go vet 发现可疑代码"
+
+    golangci-lint:
+      run: sh -c 'if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; fi'
+      fail_text: "golangci-lint 未通过（未安装 golangci-lint 时自动跳过）"
+
+    # ── 模板 / 前端 ────────────────────────────────────────────────────────
+    templ-generate:
+      run: sh -c 'make templ && git diff --quiet --exit-code -- "view/**/*_templ.go"'
+      fail_text: "templ 生成文件已过期：已自动执行 templ generate，请 git add view/ 后重新提交"
+
+    tailwind-build:
+      run: sh -c 'make css && git diff --quiet --exit-code -- public/css/output.css'
+      fail_text: "Tailwind 产物已过期：已自动重新生成 output.css，请 git add 后重新提交"
+
+# 推送前：全量构建（Go + templ + Tailwind）+ 完整测试
+pre-push:
+  parallel: false
+  commands:
+    build:
+      run: make build
+      fail_text: "构建失败（Go 编译 / templ / Tailwind）"
+
+    test:
+      run: make test
+      fail_text: "测试未通过（go test 默认 SQLite 零依赖）"

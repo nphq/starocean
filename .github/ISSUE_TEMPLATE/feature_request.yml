@@ -1,0 +1,25 @@
+---
+name: Feature request
+description: Suggest an idea (core stays lean — read docs/PLUGINS.md first)
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      placeholder: As a ..., I need ... because ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Could this live outside core (event hook / external integration)?
+      options: ["Yes — extension, not core", "No — needs core change", "Not sure"]
+    validations:
+      required: true

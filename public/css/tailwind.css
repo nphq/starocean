@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+/* 服务端模板类名扫描（templ 源文件） */
+@source "../../view";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+
+  /* Cloudflare 风格主色：中性蓝（链接/主按钮/高亮统一用它） */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #2f7cf6;
+  --color-brand-600: #0f62d6;
+  --color-brand-700: #0043a5;
+  --color-brand-800: #003580;
+  --color-brand-900: #00275e;
+  --color-brand-950: #001a40;
+
+  /* 中性灰（冷灰，去暖色调，向 CF 的 gray 靠） */
+  --color-warm-50: #f9fafb;
+  --color-warm-100: #f3f4f6;
+  --color-warm-200: #e5e7eb;
+  --color-warm-300: #d1d5db;
+  --color-warm-400: #9ca3af;
+  --color-warm-500: #6b7280;
+  --color-warm-600: #4b5563;
+  --color-warm-700: #374151;
+  --color-warm-800: #1f2937;
+  --color-warm-900: #111827;
+  --color-warm-950: #030712;
+
+  --color-amber-50: #fffbeb;
+  --color-amber-500: #f59e0b;
+  --color-amber-600: #d97706;
+
+  --color-emerald-50: #ecfdf5;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+
+  --color-rose-50: #fff1f2;
+  --color-rose-500: #f43f5e;
+  --color-rose-600: #e11d48;
+
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --shadow-elevated: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+}
+
+@layer base {
+  html {
+    @apply antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-warm-50 text-warm-900 dark:bg-warm-900 dark:text-warm-100;
+  }
+  ::selection {
+    @apply bg-brand-500/20;
+  }
+}
+
+@layer components {
+  /* CF 风格：小圆角（6-8px）、克制阴影、边框为主 */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+           text-sm font-semibold bg-brand-600 text-white
+           hover:bg-brand-700 active:bg-brand-800
+           transition-colors duration-100
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md
+           text-sm font-medium bg-white dark:bg-warm-800
+           text-warm-700 dark:text-warm-200
+           border border-warm-300 dark:border-warm-700
+           hover:bg-warm-50 dark:hover:bg-warm-700
+           transition-colors duration-100;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md
+           text-sm font-medium text-warm-500 dark:text-warm-400
+           hover:text-brand-700 dark:hover:text-brand-300
+           hover:bg-brand-50 dark:hover:bg-warm-800
+           transition-colors duration-100;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md
+           text-sm font-medium text-rose-600 dark:text-rose-400
+           hover:bg-rose-50 dark:hover:bg-rose-950/30
+           border border-transparent hover:border-rose-200 dark:hover:border-rose-800/50
+           transition-colors duration-100;
+  }
+  .card {
+    @apply bg-white dark:bg-warm-800 rounded-lg border border-warm-200 dark:border-warm-700/60 shadow-xs;
+  }
+  .input-field {
+    @apply w-full px-3 py-2 rounded-md
+           border border-warm-300 dark:border-warm-700
+           bg-white dark:bg-warm-800
+           text-warm-900 dark:text-warm-100
+           placeholder-warm-400 dark:placeholder-warm-500
+           focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-600
+           transition-colors duration-100 text-sm;
+  }
+  .select-field {
+    @apply w-full px-3 py-2 rounded-md
+           border border-warm-300 dark:border-warm-700
+           bg-white dark:bg-warm-800
+           text-warm-900 dark:text-warm-100
+           focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-600
+           transition-colors duration-100 text-sm appearance-none;
+  }
+  /* CF 表头：无底色、纯大写灰字 + 下边框 */
+  .table-header {
+    @apply px-4 py-2.5 text-left text-[11px] font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-wider border-b border-warm-200 dark:border-warm-700/60 whitespace-nowrap;
+  }
+  .table-cell {
+    @apply px-4 py-3 text-sm;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-px rounded text-[11px] font-medium;
+  }
+  .nav-link {
+    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-normal
+           text-warm-600 dark:text-warm-400
+           hover:text-warm-900 dark:hover:text-warm-100
+           hover:bg-warm-100 dark:hover:bg-warm-800
+           transition-colors duration-100;
+  }
+  .nav-link-active {
+    @apply flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-medium
+           text-brand-700 dark:text-brand-300
+           bg-brand-50 dark:bg-brand-950/50
+           transition-colors duration-100;
+  }
+}

@@ -1,0 +1,103 @@
+package print
+
+import (
+	"github.com/nphq/starocean/internal/models"
+	"github.com/nphq/starocean/view/layout"
+)
+
+templ ReconciliationPrint(r models.Reconciliation, orderItems []models.ReconciliationItem, paymentItems []models.ReconciliationItem, companyName string) {
+	@layout.PrintLayout("对账单", companyName) {
+		<div class="print-title">对 账 单</div>
+		<div class="print-info">
+			<div><span class="label">对账编号：</span><span class="value">{ r.ReconciliationNo }</span></div>
+			<div><span class="label">往来方：</span><span class="value">{ r.PartnerName }</span></div>
+			<div><span class="label">对账期间：</span><span class="value">{ r.PeriodStart.Format("2006-01-02") } ~ { r.PeriodEnd.Format("2006-01-02") }</span></div>
+			<div><span class="label">状　　态：</span><span class="value">{ r.Status }</span></div>
+		</div>
+
+		<div class="sub-table-title">订单明细</div>
+		<table class="print-table">
+			<thead>
+				<tr>
+					<th>单据编号</th>
+					<th style="width:110px">日期</th>
+					<th style="width:110px">金额</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(orderItems) > 0 {
+					for _, item := range orderItems {
+						<tr>
+							<td>{ item.ReferenceNo }</td>
+							<td class="center">
+								if item.ReferenceDate != nil {
+									{ item.ReferenceDate.Format("2006-01-02") }
+								} else {
+									-
+								}
+							</td>
+							<td class="num">¥{ item.Amount.StringFixed(2) }</td>
+						</tr>
+					}
+				} else {
+					<tr>
+						<td colspan="3" style="text-align:center;color:#a8a29e">暂无订单明细</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<div class="print-total">
+			<span class="total-label">小计：</span>¥{ r.OrderTotal.StringFixed(2) }
+		</div>
+
+		<div class="sub-table-title">收款明细</div>
+		<table class="print-table">
+			<thead>
+				<tr>
+					<th>备注</th>
+					<th style="width:110px">日期</th>
+					<th style="width:110px">金额</th>
+				</tr>
+			</thead>
+			<tbody>
+				if len(paymentItems) > 0 {
+					for _, item := range paymentItems {
+						<tr>
+							<td>{ item.ReferenceNo }</td>
+							<td class="center">
+								if item.ReferenceDate != nil {
+									{ item.ReferenceDate.Format("2006-01-02") }
+								} else {
+									-
+								}
+							</td>
+							<td class="num">¥{ item.Amount.StringFixed(2) }</td>
+						</tr>
+					}
+				} else {
+					<tr>
+						<td colspan="3" style="text-align:center;color:#a8a29e">暂无收款明细</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+		<div class="print-total">
+			<span class="total-label">小计：</span>¥{ r.PaymentTotal.StringFixed(2) }
+		</div>
+
+		<div class="print-total">
+			<span class="total-label">差异金额：</span>¥{ r.Discrepancy.StringFixed(2) }
+		</div>
+
+		<div class="print-signature two-col">
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">确认方签章</div>
+			</div>
+			<div class="sig-item">
+				<div class="sig-line"></div>
+				<div class="sig-label">我方签章</div>
+			</div>
+		</div>
+	}
+}
