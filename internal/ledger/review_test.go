@@ -10,7 +10,8 @@ import (
 
 func setRequireReview(t *testing.T, db DBTX) {
 	t.Helper()
-	if _, err := db.ExecContext(context.Background(), `UPDATE gl_settings SET require_review = 1 WHERE company_id = 'default'`); err != nil {
+	// 用 TRUE/FALSE 布尔字面量，避免 PG(boolean) 与 SQLite(integer 别名) 类型差异。
+	if _, err := db.ExecContext(context.Background(), `UPDATE gl_settings SET require_review = TRUE WHERE company_id = 'default'`); err != nil {
 		t.Fatalf("set require_review: %v", err)
 	}
 }

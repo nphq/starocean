@@ -310,8 +310,10 @@ func TestBusinessEventIdempotent(t *testing.T) {
 	ctx := context.Background()
 	const soID = "00000000-0000-4000-8000-0000000000b1"
 	const custID = "00000000-0000-4000-8000-0000000000c1"
-	database.Exec(`INSERT INTO customers (id, code, name) VALUES (?, 'T-IDEM', '幂等客户')`, custID)
-	database.Exec(`INSERT INTO sales_orders (id, order_no, customer_id, status, total_amount) VALUES (?, 'SO-IDEM-1', ?, 'confirmed', '100.00')`, soID, custID)
+	// 占位符用 $N：SQLite/PostgreSQL 双方言均可绑定（? 仅 SQLite 支持）。
+	// ON CONFLICT DO NOTHING：固定 UUID + 共享库重跑时不因残留行撞主键。
+	mustExec(t, ctx, database, `INSERT INTO customers (id, code, name) VALUES ($1, 'T-IDEM', '幂等客户') ON CONFLICT (id) DO NOTHING`, custID)
+	mustExec(t, ctx, database, `INSERT INTO sales_orders (id, order_no, customer_id, status, total_amount) VALUES ($1, 'SO-IDEM-1', $2, 'confirmed', '100.00') ON CONFLICT (id) DO NOTHING`, soID, custID)
 
 	run := func() error {
 		tx, err := database.BeginTx(ctx, nil)
@@ -332,7 +334,9 @@ func TestBusinessEventIdempotent(t *testing.T) {
 		t.Fatalf("second (idempotent) post: %v", err)
 	}
 	var n int
-	database.QueryRow(`SELECT COUNT(*) FROM gl_vouchers WHERE source_type='sales_order' AND source_id=?`, soID).Scan(&n)
+	if err := database.QueryRow(`SELECT COUNT(*) FROM gl_vouchers WHERE source_type='sales_order' AND source_id=$1`, soID).Scan(&n); err != nil {
+		t.Fatalf("count vouchers: %v", err)
+	}
 	if n != 1 {
 		t.Fatalf("expected exactly 1 voucher, got %d", n)
 	}

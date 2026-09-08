@@ -287,7 +287,7 @@ func paymentRejectedMsg(ctx context.Context, tx *sql.Tx, table string, id uuid.U
 
 const clearingSelect = `
 	SELECT c.id, c.payment_id, c.doc_type, c.doc_id, c.amount, c.status,
-	       c.cleared_by, c.cleared_at::text, c.company_id
+	       c.cleared_by, c.cleared_at, c.company_id
 	FROM finance_clearings c`
 
 func scanClearingRows(rows *sql.Rows) ([]models.Clearing, error) {
