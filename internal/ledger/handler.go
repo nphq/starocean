@@ -85,7 +85,7 @@ func (h *Handler) SettingsUpdate(c *gin.Context) {
 			revenue_account=$6, cogs_account=$7, opex_account=$8, payroll_account=$9,
 			income_summary=$10, retained_earnings=$11, surplus_account=$12, auto_post=$13, costing_method=$14,
 			require_review=$15, output_tax_account=$16, input_tax_account=$17,
-			updated_at=NOW()
+			updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE company_id=$18`,
 		in.CashAccount, in.BankAccount, in.ARAccount, in.APAccount, in.InventoryAccount,
 		in.RevenueAccount, in.COGSAccount, in.OpexAccount, in.PayrollAccount,

@@ -30,11 +30,11 @@ StarOcean 专为中小企业（SME）设计：一个二进制文件 + 一个 SQL
 | 层 | 选择 |
 |---|---|
 | 后端 | Go 1.26 + Gin（页面 HTML + JSON API 并存） |
-| 数据库 | **SQLite（单机默认，CGO-free）** / PostgreSQL 16（可选） |
-| SQL | 手写参数化查询（database/sql + pgx / modernc-sqlite，无 ORM） |
+| 数据库 | **Turso 文件库（SQLite 兼容引擎，纯 Go、无 CGO，单机默认）** |
+| SQL | 手写参数化查询（database/sql + tursogo，无 ORM） |
 | 前端 | templ 服务端模板 + Tailwind CSS 4 |
 | JS 运行时 | 无框架，仅少量内联脚本（深色模式/确认框） |
-| 迁移 | 内嵌迁移 + 自动 DDL 翻译（SQLite）/ golang-migrate（PostgreSQL） |
+| 迁移 | 内嵌单一基线 `schema.sql`（Turso 方言，幂等，可重复执行） |
 
 ## 快速开始
 
@@ -51,7 +51,7 @@ chmod +x scripts/dev.sh
 1. 生成 `templ` 模板与 Tailwind CSS。
 2. 启动应用，监听 `http://localhost:8080`（演示账号: `admin` / `3dQAKbZHqP6P`）。
 
-默认 SQLite 单机运行；如需 PostgreSQL，设置 `DATABASE_URL`（见下）。
+默认 Turso 文件库单机运行（SQLite 兼容，零外部依赖）。
 
 ### Docker 镜像（可选）
 
@@ -79,23 +79,12 @@ make build
 ./starocean serve -secret "更换为你的随机密钥"
 # 或
 DATABASE_URL="sqlite:data/starocean.db" ./starocean serve -secret "..."
+# Turso DSN 前缀亦可：DATABASE_URL="turso:data/starocean.db"
 ```
 
-### 可选：PostgreSQL
-
-```bash
-docker run -d --name starocean-db \
-  -e POSTGRES_DB=starocean \
-  -e POSTGRES_USER=starocean \
-  -e POSTGRES_PASSWORD=starocean \
-  -p 5432:5432 \
-  postgres:16-alpine
-
-./starocean migrate --db "postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable"
-./starocean seed --db "postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable" -demo-password
-./starocean serve --db "postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable" \
-  -secret "更换为你的随机密钥"
-```
+> 升级注意：旧版本创建的 `.db` 文件含 STORED 生成列，Turso 引擎无法解析
+> 其 schema，请重建库（备份数据 → 新版 `migrate` + `seed`，或按表导出导入）。
+> 新版 `schema.sql` 已把计算列写成普通列 + 触发器。
 
 访问 http://localhost:8080，演示账号 `admin` / `3dQAKbZHqP6P`（由 `-seed` 写入）。
 
@@ -107,14 +96,14 @@ docker run -d --name starocean-db \
 ./starocean seed     # 写入演示数据后退出 (可加 -products N / -clear；需 ADMIN_PASSWORD 或 -demo-password，否则拒绝执行)
 ```
 
-> 数据库连接串：默认 `sqlite:starocean.db`（单机零依赖）；
-> 使用 PostgreSQL 时传 `postgres://user:pass@host:5432/db?sslmode=disable`。
+> 数据库连接串：默认 `sqlite:starocean.db`（Turso 引擎承载，单机零依赖），
+> 亦可用 `turso:<path>` 前缀（可透传 `?experimental=` 等 Turso DSN 参数）。
 
 ### 环境变量
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:starocean.db` | 数据库连接（`sqlite:<path>` 或 `postgres://...`） |
+| `DATABASE_URL` | `sqlite:starocean.db` | 数据库连接（`sqlite:<path>` 或 `turso:<path>`） |
 | `PORT` | `8080` | 监听端口 |
 | `SECRET_KEY` | （必填，启动时校验） | Session 加密密钥，请使用随机值 |
 | `COMPANY_NAME` | `StarOcean` | 公司/品牌名（用于页面标题与打印单据抬头） |

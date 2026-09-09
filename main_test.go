@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -27,11 +26,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const perfDBURL = "postgres://starocean:starocean@localhost:5432/starocean_perf?sslmode=disable"
-
 // testDSN 测试数据库连接串: 缺省使用 t.TempDir() 下的 SQLite 临时库
 // （零依赖，裸 `go test ./...` 也能真正执行，避免无库静默 Skip 造成假绿），
-// 可通过 STAROCEAN_TEST_DSN=postgres://... 切换到 PostgreSQL。
+// 可通过 STAROCEAN_TEST_DSN=sqlite:<path> 指定其他库。
 func testDSN(t *testing.T) string {
 	t.Helper()
 	if v := os.Getenv("STAROCEAN_TEST_DSN"); v != "" {
@@ -49,7 +46,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		// 缺省 SQLite 临时库本地一定可用，失败同样直接报错。
 		t.Fatalf("test database unavailable (DSN=%q): %v", dbURL, err)
 	}
-	if err := db.Migrate(database, dbURL, migrationsFS); err != nil {
+	if err := db.Migrate(database); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	database.Exec(`DELETE FROM gl_voucher_lines`)
@@ -70,9 +67,9 @@ func setupTestDB(t *testing.T) *sql.DB {
 	database.Exec(`DELETE FROM users`)
 
 	hash, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-	database.Exec(`INSERT INTO users (id, username, password_hash, role) VALUES (gen_random_uuid(), 'admin', $1, 'admin') ON CONFLICT DO NOTHING`, string(hash))
-	database.Exec(`INSERT INTO customers (id, code, name) VALUES (gen_random_uuid(), 'T1', 'Test Co') ON CONFLICT DO NOTHING`)
-	database.Exec(`INSERT INTO products (id, code, name, sale_price, cost_price, safety_stock, current_stock) VALUES (gen_random_uuid(), 'P1', 'Widget', '10.00', '5.00', 10, 50) ON CONFLICT DO NOTHING`)
+	database.Exec(`INSERT INTO users (id, username, password_hash, role) VALUES ((lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6)))), 'admin', $1, 'admin') ON CONFLICT DO NOTHING`, string(hash))
+	database.Exec(`INSERT INTO customers (id, code, name) VALUES ((lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6)))), 'T1', 'Test Co') ON CONFLICT DO NOTHING`)
+	database.Exec(`INSERT INTO products (id, code, name, sale_price, cost_price, safety_stock, current_stock) VALUES ((lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6)))), 'P1', 'Widget', '10.00', '5.00', 10, 50) ON CONFLICT DO NOTHING`)
 	return database
 }
 
@@ -577,12 +574,12 @@ func TestPaymentFormKeepsTokenOnValidationError(t *testing.T) {
 func TestIsUniqueViolationFromDriver(t *testing.T) {
 	database := setupTestDB(t)
 	_, err := database.Exec(`INSERT INTO payments (id, type, amount, partner_type, client_token, payment_date, created_at)
-		VALUES ($1, '收入', 1, '', $2, NOW(), NOW())`, uuid.New(), "tok-uniq-drv")
+		VALUES ($1, '收入', 1, '', $2, (strftime('%Y-%m-%dT%H:%M:%SZ','now')), (strftime('%Y-%m-%dT%H:%M:%SZ','now')))`, uuid.New(), "tok-uniq-drv")
 	if err != nil {
 		t.Fatalf("first insert: %v", err)
 	}
 	_, err = database.Exec(`INSERT INTO payments (id, type, amount, partner_type, client_token, payment_date, created_at)
-		VALUES ($1, '收入', 1, '', $2, NOW(), NOW())`, uuid.New(), "tok-uniq-drv")
+		VALUES ($1, '收入', 1, '', $2, (strftime('%Y-%m-%dT%H:%M:%SZ','now')), (strftime('%Y-%m-%dT%H:%M:%SZ','now')))`, uuid.New(), "tok-uniq-drv")
 	if err == nil {
 		t.Fatal("expected unique violation")
 	}
@@ -760,175 +757,6 @@ func TestConcurrentPaymentAllocation(t *testing.T) {
 	}
 }
 
-var (
-	perfDB     *sql.DB
-	perfDBOnce sync.Once
-)
-
-func ensurePerfDB(b testing.TB) *sql.DB {
-	b.Helper()
-	perfDBOnce.Do(func() {
-		database, err := sql.Open("pgx", perfDBURL)
-		if err != nil {
-			b.Skipf("perf DB open: %v", err)
-		}
-		if err := database.Ping(); err != nil {
-			b.Skipf("perf DB ping failed (run 'make perf-seed'): %v", err)
-		}
-		if err := db.Migrate(database, perfDBURL, migrationsFS); err != nil {
-			b.Fatalf("migrate perf: %v", err)
-		}
-		var count int64
-		database.QueryRow(`SELECT COUNT(*) FROM products`).Scan(&count)
-		if count < 500000 {
-			b.Skipf("need >= 100k products in starocean_perf (have %d). Run: make perf-seed", count)
-		}
-		hash, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
-		database.Exec(`INSERT INTO users (id, username, password_hash, role) VALUES (gen_random_uuid(), 'admin', $1, 'admin') ON CONFLICT (username) DO NOTHING`, string(hash))
-		perfDB = database
-	})
-	return perfDB
-}
-
-func TestProductSearchBaseline(t *testing.T) {
-	database := ensurePerfDB(t)
-	defer database.Close()
-
-	r := testRouter(t, database)
-	sess := loginSession(t, r)
-
-	cases := []struct {
-		name    string
-		keyword string
-		maxMS   int
-	}{
-		{"chinese_short", "工程密封", 50},
-		{"chinese_long", "工程密封件铜材", 50},
-		{"code_prefix", "SKU-00", 50},
-		{"code_exact", "PSK-0001000", 100},
-		{"no_match", "不存在的内容xyz", 50},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			path := "/api/products/search?q=" + url.QueryEscape(tc.keyword)
-			req := httptest.NewRequest("GET", path, nil)
-			req.AddCookie(sess)
-			w := httptest.NewRecorder()
-
-			start := time.Now()
-			r.ServeHTTP(w, req)
-			elapsed := time.Since(start)
-
-			if w.Code != http.StatusOK {
-				t.Fatalf("got %d", w.Code)
-			}
-			if elapsed.Milliseconds() > int64(tc.maxMS) {
-				t.Errorf("%s: %dms > %dms threshold (keyword=%q)", tc.name, elapsed.Milliseconds(), tc.maxMS, tc.keyword)
-			} else {
-				t.Logf("%s: %dms (keyword=%q)", tc.name, elapsed.Milliseconds(), tc.keyword)
-			}
-		})
-	}
-
-	t.Run("page_first", func(t *testing.T) {
-		start := time.Now()
-		rows, err := database.QueryContext(context.Background(),
-			`SELECT id, code, name, COALESCE(category,''), COALESCE(unit,''),
-			        COALESCE(CAST(sale_price AS text),'0'), COALESCE(CAST(cost_price AS text),'0'),
-			        COALESCE(safety_stock,0), COALESCE(current_stock,0),
-			        COALESCE(created_at, '1970-01-01'::timestamptz)
-			 FROM products ORDER BY created_at DESC NULLS LAST, id DESC LIMIT 20`)
-		elapsed := time.Since(start)
-		if err != nil {
-			t.Fatalf("query: %v", err)
-		}
-		rows.Close()
-		if elapsed.Milliseconds() > 100 {
-			t.Errorf("page_first: %dms > 100ms", elapsed.Milliseconds())
-		} else {
-			t.Logf("page_first: %dms", elapsed.Milliseconds())
-		}
-	})
-
-	t.Run("page_deep_sql", func(t *testing.T) {
-		var cursorAt time.Time
-		var cursorID uuid.UUID
-		err := database.QueryRow(`SELECT created_at, id FROM products ORDER BY created_at DESC NULLS LAST, id DESC OFFSET 249990 LIMIT 1`).Scan(&cursorAt, &cursorID)
-		if err != nil {
-			t.Skipf("cannot get cursor: %v", err)
-		}
-
-		start := time.Now()
-		rows, err := database.QueryContext(context.Background(),
-			`SELECT id, code, name, COALESCE(category,''), COALESCE(unit,''),
-			        COALESCE(CAST(sale_price AS text),'0'), COALESCE(CAST(cost_price AS text),'0'),
-			        COALESCE(safety_stock,0), COALESCE(current_stock,0),
-			        COALESCE(created_at, '1970-01-01'::timestamptz)
-			 FROM products WHERE (created_at, id) < ($1, $2)
-			 ORDER BY created_at DESC NULLS LAST, id DESC LIMIT 20`, cursorAt, cursorID)
-		elapsed := time.Since(start)
-		if err != nil {
-			t.Fatalf("query: %v", err)
-		}
-		rows.Close()
-		if elapsed.Milliseconds() > 100 {
-			t.Errorf("page_deep_sql: %dms > 100ms", elapsed.Milliseconds())
-		} else {
-			t.Logf("page_deep_sql: %dms", elapsed.Milliseconds())
-		}
-	})
-}
-
-func BenchmarkProductSearch(b *testing.B) {
-	database := ensurePerfDB(b)
-	defer database.Close()
-
-	r := testRouter(b, database)
-	sess := loginSessionB(b, r)
-
-	queries := []struct {
-		name    string
-		keyword string
-	}{
-		{"chinese_short", "工程密封"},
-		{"chinese_long", "工程密封件铜材"},
-		{"code_prefix", "SKU-00"},
-		{"code_exact", "PSK-0001000"},
-		{"no_match", "不存在的内容xyz"},
-	}
-
-	for _, q := range queries {
-		b.Run(q.name, func(b *testing.B) {
-			path := "/api/products/search?q=" + url.QueryEscape(q.keyword)
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				req := httptest.NewRequest("GET", path, nil)
-				req.AddCookie(sess)
-				w := httptest.NewRecorder()
-				r.ServeHTTP(w, req)
-				if w.Code != http.StatusOK {
-					b.Fatalf("got %d", w.Code)
-				}
-			}
-		})
-	}
-}
-
-func loginSessionB(b *testing.B, router *gin.Engine) *http.Cookie {
-	req := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"username":"admin","password":"admin"}`))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	for _, c := range w.Result().Cookies() {
-		if c.Name == "starocean_sess" {
-			return c
-		}
-	}
-	b.Fatal("no session cookie")
-	return nil
-}
-
 func TestLedgerAutoPostAndStatements(t *testing.T) {
 	database := setupTestDB(t)
 	defer database.Close()
@@ -945,7 +773,7 @@ func TestLedgerAutoPostAndStatements(t *testing.T) {
 
 	var voucherNo, status, debit, credit string
 	err := database.QueryRow(`
-		SELECT voucher_no, status, debit_total::text, credit_total::text
+		SELECT voucher_no, status, CAST(debit_total AS TEXT), CAST(credit_total AS TEXT)
 		FROM gl_vouchers WHERE source_type='sales_order' AND source_id=$1 AND reverses_id IS NULL`, orderID).
 		Scan(&voucherNo, &status, &debit, &credit)
 	if err != nil {
@@ -1041,7 +869,7 @@ func TestHTMLPages(t *testing.T) {
 	}
 	for _, p := range []string{"/", "/products", "/customers", "/suppliers", "/sales", "/purchases",
 		"/inventory", "/finance", "/ledger", "/ledger/accounts", "/ledger/vouchers", "/ledger/books",
-		"/ledger/reports", "/personnel/employees", "/workreports", "/picking", "/attendance", "/search?q=test"} {
+		"/ledger/reports", "/search?q=test"} {
 		ww := get(p, false)
 		if ww.Code != http.StatusOK {
 			t.Errorf("GET %s: expected 200, got %d", p, ww.Code)
@@ -1113,7 +941,7 @@ func TestCreditAccumulation(t *testing.T) {
 	}
 	balance := func() string {
 		var b string
-		database.QueryRow(`SELECT balance::text FROM customers WHERE code = 'T1'`).Scan(&b)
+		database.QueryRow(`SELECT CAST(balance AS TEXT) FROM customers WHERE code = 'T1'`).Scan(&b)
 		d, _ := decimal.NewFromString(b)
 		return d.StringFixed(2)
 	}
@@ -1226,7 +1054,7 @@ func TestViewerReadOnly(t *testing.T) {
 
 	// 新建 viewer 用户（与 admin 同口令，role=viewer）
 	database.Exec(`INSERT INTO users (id, username, password_hash, role)
-		SELECT gen_random_uuid(), 'viewer1', password_hash, 'viewer' FROM users WHERE username='admin'`)
+		SELECT (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6)))), 'viewer1', password_hash, 'viewer' FROM users WHERE username='admin'`)
 
 	vLogin := httptest.NewRequest("POST", "/api/login", strings.NewReader(`{"username":"viewer1","password":"admin"}`))
 	vLogin.Header.Set("Content-Type", "application/json")
@@ -1300,5 +1128,60 @@ func TestViewerReadOnly(t *testing.T) {
 	r.ServeHTTP(aw, adminWrite)
 	if aw.Code != http.StatusCreated {
 		t.Errorf("admin write: expected 201, got %d (%s)", aw.Code, truncate(aw.Body.String(), 200))
+	}
+}
+
+// TestReceivableAgingBuckets 锁定 Turso 日龄用 julianday，而非 CURRENT_DATE 相减。
+func TestReceivableAgingBuckets(t *testing.T) {
+	database := setupTestDB(t)
+	r := testRouter(t, database)
+	sess := loginSession(t, r)
+
+	var custID string
+	if err := database.QueryRow(`SELECT id FROM customers WHERE code='T1'`).Scan(&custID); err != nil {
+		t.Fatal(err)
+	}
+
+	insertSO := func(no, daysAgo, total string) {
+		t.Helper()
+		_, err := database.Exec(`
+			INSERT INTO sales_orders (id, order_no, customer_id, status, total_amount, paid_amount, order_date)
+			VALUES ($1, $2, $3, 'confirmed', $4, 0, date('now', $5))`,
+			uuid.New().String(), no, custID, total, "-"+daysAgo+" days")
+		if err != nil {
+			t.Fatalf("insert %s: %v", no, err)
+		}
+	}
+	insertSO("SO-AGE-10", "10", "100.00")  // 0_30 / 0-30天
+	insertSO("SO-AGE-45", "45", "200.00")  // 31_60 / 31-60天
+	insertSO("SO-AGE-75", "75", "300.00")  // 61_90 / 61-90天
+	insertSO("SO-AGE-120", "120", "400.00") // 90+ / 90天以上
+
+	req := authJSON("GET", "/api/finance/receivable/aging", nil, sess)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("aging: expected 200, got %d body=%s", w.Code, truncate(w.Body.String(), 300))
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &items); err != nil {
+		t.Fatalf("json array: %v body=%s", err, truncate(w.Body.String(), 300))
+	}
+	got := map[string]string{}
+	for _, it := range items {
+		rng, _ := it["range"].(string)
+		amt, _ := it["amount"].(string)
+		got[rng] = amt
+	}
+	want := map[string]string{
+		"0-30天":  "100.00",
+		"31-60天": "200.00",
+		"61-90天": "300.00",
+		"90天以上": "400.00",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("range %s: got %q want %q (full=%v)", k, got[k], v, got)
+		}
 	}
 }

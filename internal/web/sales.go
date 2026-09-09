@@ -22,7 +22,7 @@ const salesListCols = `so.id, so.order_no, COALESCE(so.customer_id, '00000000-00
        COALESCE(so.total_amount, 0), COALESCE(so.paid_amount, 0),
        COALESCE(so.order_date, '1970-01-01'), COALESCE(so.notes, ''),
        COALESCE(so.created_at, '1970-01-01'),
-       COALESCE(so.company_id, 'default'), COALESCE(so.properties::text, '{}')`
+       COALESCE(so.company_id, 'default'), COALESCE(so.properties, '{}')`
 
 func scanSalesRow(row interface{ Scan(...any) error }) (models.SalesOrder, error) {
 	var o models.SalesOrder
@@ -42,7 +42,7 @@ func (h *Handler) SalesPage(c *gin.Context) {
 	if q != "" {
 		rows, err := h.db.QueryContext(ctx, `SELECT `+salesListCols+`
 			FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id
-			WHERE so.order_no ILIKE '%' || $1 || '%' OR c.name ILIKE '%' || $1 || '%'
+			WHERE so.order_no LIKE '%' || $1 || '%' OR c.name LIKE '%' || $1 || '%'
 			ORDER BY so.created_at DESC LIMIT 100`, q)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "加载失败")
@@ -172,7 +172,7 @@ func (h *Handler) loadSaleDetail(ctx context.Context, id uuid.UUID) (saleDetailD
 	err := h.db.QueryRowContext(ctx, `SELECT id, order_no, COALESCE(customer_id, '00000000-0000-0000-0000-000000000000'),
 		COALESCE(status, 'draft'), COALESCE(total_amount, 0), COALESCE(paid_amount, 0),
 		COALESCE(order_date, '1970-01-01'), COALESCE(delivery_date, '1970-01-01'), COALESCE(notes, ''), COALESCE(created_at, '1970-01-01'),
-		COALESCE(company_id, 'default'), COALESCE(properties::text, '{}') FROM sales_orders WHERE id = $1`, id).Scan(
+		COALESCE(company_id, 'default'), COALESCE(properties, '{}') FROM sales_orders WHERE id = $1`, id).Scan(
 		&o.ID, &o.OrderNo, &o.CustomerID, &o.Status, &o.TotalAmount, &o.PaidAmount,
 		&o.OrderDate, &o.DeliveryDate, &o.Notes, &o.CreatedAt, &o.CompanyID, &o.Properties)
 	if err != nil {
@@ -252,7 +252,7 @@ func (h *Handler) SaleAddItem(c *gin.Context) {
 	}
 	defer tx.Rollback()
 	var status string
-	if err := tx.QueryRowContext(ctx, `SELECT status FROM sales_orders WHERE id = $1 FOR UPDATE`, id).Scan(&status); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT status FROM sales_orders WHERE id = $1`, id).Scan(&status); err != nil {
 		fail("订单不存在")
 		return
 	}
@@ -265,7 +265,7 @@ func (h *Handler) SaleAddItem(c *gin.Context) {
 		fail("添加明细失败")
 		return
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE sales_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM sales_order_items WHERE order_id = $1), updated_at = NOW() WHERE id = $1`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE sales_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM sales_order_items WHERE order_id = $1), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id); err != nil {
 		fail("添加明细失败")
 		return
 	}

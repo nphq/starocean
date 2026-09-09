@@ -87,7 +87,7 @@ func MergeProperties(ctx context.Context, exec interface {
 		return fmt.Errorf("unsupported properties table")
 	}
 	_, err := exec.ExecContext(ctx,
-		fmt.Sprintf(`UPDATE %s SET properties = properties || $2::jsonb, updated_at = NOW() WHERE id = $1`, table),
+		fmt.Sprintf(`UPDATE %s SET properties = json_patch(properties, $2), updated_at = (strftime('%%Y-%%m-%%dT%%H:%%M:%%SZ','now')) WHERE id = $1`, table),
 		id, JSONMapArg(patch))
 	return err
 }

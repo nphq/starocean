@@ -56,8 +56,9 @@ docker:
 	docker build -t starocean .
 
 # 集成测试默认用单次运行的 SQLite 临时库（test helpers 缺库曾静默 Skip，导致假绿）；
-# 各测试包自动追加后缀（如 _ledger.db）避免并行冲突，跑完自动删除。需要跑 PG 时：
-#   make test STAROCEAN_TEST_DSN=postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable
+# 各测试包自动追加后缀（如 _ledger.db）避免并行冲突，跑完自动删除。可用
+#   make test STAROCEAN_TEST_DSN=sqlite:<path>
+# 指定其他库。
 test:
 	@if [ -n "$(STAROCEAN_TEST_DSN)" ]; then \
 		STAROCEAN_TEST_DSN="$(STAROCEAN_TEST_DSN)" go test -count=1 ./...; \
@@ -73,28 +74,6 @@ test:
 #   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 lint:
 	golangci-lint run --timeout=5m ./...
-
-perf-test: perf-seed
-	go test -v -count=1 -run TestProductSearchBaseline ./...
-
-bench: perf-seed
-	go test -bench=BenchmarkProductSearch -benchmem -benchtime=1s -run=^$$ .
-
-perf-seed:
-	@PGURL="$${PGURL:-postgres://starocean:starocean@localhost:5432/postgres?sslmode=disable}"; \
-	psql "$$PGURL" -tc "SELECT 1 FROM pg_database WHERE datname='starocean_perf'" | grep -q 1 || \
-		(echo "creating starocean_perf..." && \
-		 psql "$$PGURL" -c "CREATE DATABASE starocean_perf" && \
-		 pg_dump -U starocean --schema-only starocean | \
-		 psql -U starocean -d starocean_perf > /dev/null && \
-		 pg_dump -U starocean -t schema_migrations -d starocean | \
-		 psql -U starocean -d starocean_perf > /dev/null && \
-		 psql -U starocean -d starocean_perf -c \
-			"INSERT INTO products (id, code, name, category, unit, sale_price, cost_price, safety_stock, current_stock) \
-			 SELECT gen_random_uuid(), 'PSK-'||to_char(i, 'FM0000000'), '精密轴承 '||i, '原材料', '个', 25, 15, 100, 50 \
-			 FROM generate_series(1, 500000) s(i) ON CONFLICT (code) DO NOTHING")
-	@echo "perf DB ready (PGURL=$$PGURL; 需本地 PostgreSQL + psql 客户端)"
-
 
 clean:
 	rm -f starocean

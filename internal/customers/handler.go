@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/nphq/starocean/internal/models"
-	"github.com/nphq/starocean/internal/partnernotes"
 	"github.com/nphq/starocean/internal/shared"
 )
 
@@ -23,26 +22,26 @@ const customerCols = `id, code, name, COALESCE(contact_person,'') as contact_per
        COALESCE(email,'') as email, COALESCE(address,'') as address,
        COALESCE(credit_limit, 0) as credit_limit, COALESCE(balance, 0) as balance,
        COALESCE(tier, 'normal') as tier, COALESCE(sales_person,'') as sales_person,
-       COALESCE(created_at, '1970-01-01'::timestamptz) as created_at,
+       COALESCE(created_at, '1970-01-01') as created_at,
        COALESCE(company_id,'default') as company_id,
-       COALESCE(properties::text,'{}') as properties`
+       COALESCE(properties,'{}') as properties`
 
 const listCustomersSQL = `SELECT ` + customerCols + ` FROM customers ORDER BY created_at DESC NULLS LAST LIMIT $1 OFFSET $2`
 
 const getCustomerSQL = `SELECT ` + customerCols + ` FROM customers WHERE id = $1`
 
 const searchCustomersSQL = `SELECT ` + customerCols + ` FROM customers
-WHERE name ILIKE '%' || $1 || '%' OR code ILIKE '%' || $1 || '%' OR phone ILIKE '%' || $1 || '%'
+WHERE name LIKE '%' || $1 || '%' OR code LIKE '%' || $1 || '%' OR phone LIKE '%' || $1 || '%'
 ORDER BY name LIMIT 20`
 
 const createCustomerSQL = `INSERT INTO customers (id, code, name, contact_person, phone, email, address, credit_limit, tier, sales_person, properties)
-VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), NULLIF($8,'')::numeric, COALESCE(NULLIF($9,''), 'normal'), NULLIF($10,''), $11::jsonb)
+VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), CAST(NULLIF($8,'') AS NUMERIC), COALESCE(NULLIF($9,''), 'normal'), NULLIF($10,''), $11)
 RETURNING ` + customerCols
 
 const updateCustomerSQL = `UPDATE customers SET name = $2, contact_person = NULLIF($3,''), phone = NULLIF($4,''),
-       email = NULLIF($5,''), address = NULLIF($6,''), credit_limit = NULLIF($7,'')::numeric,
+       email = NULLIF($5,''), address = NULLIF($6,''), credit_limit = CAST(NULLIF($7,'') AS NUMERIC),
        tier = COALESCE(NULLIF($8,''), tier), sales_person = NULLIF($9,''),
-       properties = properties || $10::jsonb, updated_at = NOW()
+       properties = json_patch(properties, $10), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 WHERE id = $1
 RETURNING ` + customerCols
 
@@ -57,11 +56,6 @@ type customerInput struct {
 	Tier          string                 `json:"tier"`
 	SalesPerson   string                 `json:"sales_person"`
 	Properties    map[string]interface{} `json:"properties"`
-}
-
-type customerDetail struct {
-	models.Customer
-	Notes []models.PartnerNote `json:"notes"`
 }
 
 func scanCustomer(row interface{ Scan(...interface{}) error }) (models.Customer, error) {
@@ -150,8 +144,7 @@ func (h *Handler) CustomerDetailPage(c *gin.Context) {
 		return
 	}
 
-	notes, _ := partnernotes.GetNotesByPartner(ctx, h.db, "customer", id)
-	shared.JSONOK(c, customerDetail{Customer: customer, Notes: shared.EmptySlice(notes)})
+	shared.JSONOK(c, customer)
 }
 
 func (h *Handler) CustomerUpdate(c *gin.Context) {

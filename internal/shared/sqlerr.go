@@ -3,39 +3,19 @@ package shared
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"modernc.org/sqlite"
 )
 
-// SQLite 约束码：CONSTRAINT / PRIMARYKEY / UNIQUE（见 sqlite3.h）。
-const (
-	sqliteConstraint           = 19
-	sqliteConstraintPrimaryKey = 1555
-	sqliteConstraintUnique     = 2067
-)
-
-// IsUniqueViolation 识别 PostgreSQL 23505 / SQLite UNIQUE 冲突（含部分唯一索引）。
+// Turso/SQLite 约束冲突形如：
+//   turso: constraint failed: UNIQUE constraint failed: t.a (19)
+// 统一按文本识别（大小写不敏感），不依赖驱动特有错误类型。
+// IsUniqueViolation 识别 UNIQUE 冲突（含部分唯一索引）。
 func IsUniqueViolation(err error) bool {
 	if err == nil {
 		return false
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return true
-	}
-	var sqErr *sqlite.Error
-	if errors.As(err, &sqErr) {
-		switch sqErr.Code() {
-		case sqliteConstraintUnique, sqliteConstraintPrimaryKey:
-			return true
-		case sqliteConstraint:
-			return strings.Contains(strings.ToLower(sqErr.Error()), "unique")
-		}
 	}
 	s := strings.ToLower(err.Error())
 	return strings.Contains(s, "unique constraint") ||

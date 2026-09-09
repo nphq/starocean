@@ -20,7 +20,7 @@ func AdjustStock(ctx context.Context, tx *sql.Tx, id uuid.UUID, adjType string, 
 	var beforeStock int32
 	var costPrice, productName string
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COALESCE(current_stock, 0), COALESCE(cost_price,0)::text, COALESCE(name,'') FROM products WHERE id = $1 FOR UPDATE", id).
+		"SELECT COALESCE(current_stock, 0), CAST(COALESCE(cost_price,0) AS TEXT), COALESCE(name,'') FROM products WHERE id = $1", id).
 		Scan(&beforeStock, &costPrice, &productName); err != nil {
 		return 0, err
 	}
@@ -42,7 +42,7 @@ func AdjustStock(ctx context.Context, tx *sql.Tx, id uuid.UUID, adjType string, 
 		return 0, err
 	}
 	if _, err := tx.ExecContext(ctx,
-		"UPDATE products SET current_stock = $2, updated_at = NOW() WHERE id = $1", id, afterStock); err != nil {
+		"UPDATE products SET current_stock = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1", id, afterStock); err != nil {
 		return 0, err
 	}
 	if err := ledger.PostStockAdjust(ctx, tx, adjType, int32(qty), costPrice, productName, movementID, actor); err != nil {

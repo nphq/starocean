@@ -32,8 +32,8 @@ func testDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("test database unavailable (DSN=%q): %v", url, err)
 	}
-	// P0: 自动迁移（SQLite/PG 均适用），此前未迁移直接 Skip 导致 SQLite 下 GL 集成测试静默漏跑
-	if err := db.Migrate(database, url, db.EmbeddedMigrations); err != nil {
+	// P0: 自动建库（基线 schema，幂等），此前未迁移直接 Skip 导致 GL 集成测试静默漏跑
+	if err := db.Migrate(database); err != nil {
 		database.Close()
 		t.Fatalf("migrate: %v", err)
 	}

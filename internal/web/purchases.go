@@ -21,7 +21,7 @@ const purchasesListCols = `po.id, po.order_no, COALESCE(po.supplier_id, '0000000
        COALESCE(po.total_amount, 0), COALESCE(po.paid_amount, 0),
        COALESCE(po.order_date, '1970-01-01'), COALESCE(po.notes, ''),
        COALESCE(po.created_at, '1970-01-01'),
-       COALESCE(po.company_id, 'default'), COALESCE(po.properties::text, '{}')`
+       COALESCE(po.company_id, 'default'), COALESCE(po.properties, '{}')`
 
 func scanPurchaseRow(row interface{ Scan(...any) error }) (models.PurchaseOrder, error) {
 	var o models.PurchaseOrder
@@ -41,7 +41,7 @@ func (h *Handler) PurchasesPage(c *gin.Context) {
 	if q != "" {
 		rows, err := h.db.QueryContext(ctx, `SELECT `+purchasesListCols+`
 			FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id
-			WHERE po.order_no ILIKE '%' || $1 || '%' OR s.name ILIKE '%' || $1 || '%'
+			WHERE po.order_no LIKE '%' || $1 || '%' OR s.name LIKE '%' || $1 || '%'
 			ORDER BY po.created_at DESC LIMIT 100`, q)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "加载失败")
@@ -146,7 +146,7 @@ func (h *Handler) loadPurchaseDetail(ctx context.Context, id uuid.UUID) (purchas
 	oo, err := scanPurchaseRow(h.db.QueryRowContext(ctx, `SELECT id, order_no, COALESCE(supplier_id, '00000000-0000-0000-0000-000000000000'), COALESCE(s.name,''),
 		COALESCE(po.status, 'draft'), COALESCE(po.total_amount, 0), COALESCE(po.paid_amount, 0),
 		COALESCE(po.order_date, '1970-01-01'), COALESCE(po.notes, ''), COALESCE(po.created_at, '1970-01-01'),
-		COALESCE(po.company_id, 'default'), COALESCE(po.properties::text, '{}')
+		COALESCE(po.company_id, 'default'), COALESCE(po.properties, '{}')
 		FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id WHERE po.id = $1`, id))
 	if err != nil {
 		return d, err
@@ -221,7 +221,7 @@ func (h *Handler) PurchaseAddItem(c *gin.Context) {
 	}
 	defer tx.Rollback()
 	var status string
-	if err := tx.QueryRowContext(ctx, `SELECT status FROM purchase_orders WHERE id = $1 FOR UPDATE`, id).Scan(&status); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT status FROM purchase_orders WHERE id = $1`, id).Scan(&status); err != nil {
 		fail("订单不存在")
 		return
 	}
@@ -234,7 +234,7 @@ func (h *Handler) PurchaseAddItem(c *gin.Context) {
 		fail("添加明细失败")
 		return
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE purchase_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM purchase_order_items WHERE order_id = $1), updated_at = NOW() WHERE id = $1`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE purchase_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM purchase_order_items WHERE order_id = $1), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id); err != nil {
 		fail("添加明细失败")
 		return
 	}

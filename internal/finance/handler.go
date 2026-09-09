@@ -228,7 +228,7 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		clientToken = input.ClientToken
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, reference_type, reference_id, partner_name, partner_type, partner_id, notes, client_token, payment_date, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (strftime('%Y-%m-%dT%H:%M:%SZ','now')), (strftime('%Y-%m-%dT%H:%M:%SZ','now')))`,
 		paymentID, input.Type, input.Amount, refType, refID, pName, pType, pID, notes, clientToken)
 	if err != nil {
 		if input.ClientToken != "" && shared.IsUniqueViolation(err) {
@@ -242,7 +242,7 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 
 	switch input.ReferenceType {
 	case "sales_order":
-		res, err := tx.ExecContext(ctx, `UPDATE sales_orders SET paid_amount = paid_amount + $1, updated_at = NOW()
+		res, err := tx.ExecContext(ctx, `UPDATE sales_orders SET paid_amount = paid_amount + $1, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 			WHERE id = $2 AND paid_amount + $1 <= total_amount`, input.Amount, input.ReferenceID)
 		if err != nil {
 			shared.JSONInternal(c, err)
@@ -254,14 +254,14 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		}
 		// 回款冲减欠款（仅收入方向；支出挂销售单属异常场景，不碰 balance）。
 		if input.Type == "收入" {
-			if _, err := tx.ExecContext(ctx, `UPDATE customers SET balance = balance - $1::numeric, updated_at = NOW()
+			if _, err := tx.ExecContext(ctx, `UPDATE customers SET balance = balance - CAST($1 AS NUMERIC), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 				WHERE id = (SELECT customer_id FROM sales_orders WHERE id = $2)`, input.Amount, input.ReferenceID); err != nil {
 				shared.JSONInternal(c, err)
 				return
 			}
 		}
 	case "purchase_order":
-		res, err := tx.ExecContext(ctx, `UPDATE purchase_orders SET paid_amount = paid_amount + $1, updated_at = NOW()
+		res, err := tx.ExecContext(ctx, `UPDATE purchase_orders SET paid_amount = paid_amount + $1, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 			WHERE id = $2 AND paid_amount + $1 <= total_amount`, input.Amount, input.ReferenceID)
 		if err != nil {
 			shared.JSONInternal(c, err)
@@ -278,7 +278,7 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		clearingID := uuid.New()
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO finance_clearings (id, payment_id, doc_type, doc_id, amount, status, cleared_by, cleared_at, company_id)
-			VALUES ($1, $2, $3, $4, $5, 'active', $6, NOW(), 'default')`,
+			VALUES ($1, $2, $3, $4, $5, 'active', $6, (strftime('%Y-%m-%dT%H:%M:%SZ','now')), 'default')`,
 			clearingID, paymentID, input.ReferenceType, input.ReferenceID, input.Amount, ledger.Actor(c)); err != nil {
 			shared.JSONInternal(c, err)
 			return
@@ -436,12 +436,12 @@ func (h *Handler) CashflowAPI(c *gin.Context) {
 
 func getCashflow(ctx context.Context, db *sql.DB) (CashflowView, error) {
 	var income decimal.Decimal
-	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)), 0) FROM payments WHERE type = '收入' AND payment_date >= DATE_TRUNC('month', CURRENT_DATE)::date`).Scan(&income); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)), 0) FROM payments WHERE type = '收入' AND payment_date >= date('now','start of month')`).Scan(&income); err != nil {
 		return CashflowView{}, err
 	}
 
 	var expense decimal.Decimal
-	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) FROM purchase_orders WHERE order_date >= DATE_TRUNC('month', CURRENT_DATE)::date AND status != 'cancelled'`).Scan(&expense); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) FROM purchase_orders WHERE order_date >= date('now','start of month') AND status != 'cancelled'`).Scan(&expense); err != nil {
 		return CashflowView{}, err
 	}
 
@@ -518,155 +518,12 @@ type agingBucket struct {
 }
 
 func getCashflowTrend(ctx context.Context, db *sql.DB) (cashflowTrendResponse, error) {
-	var months []cashflowTrendMonth
-
-	// SQLite 无 generate_series/LATERAL，使用 Go 侧按月查询实现
-	if shared.IsSQLite() {
-		var err error
-		if months, err = cashflowMonthsSQLite(ctx, db); err != nil {
-			return cashflowTrendResponse{}, err
-		}
-		receivable, _ := getAgingReceivable(ctx, db)
-		payable, _ := getAgingPayable(ctx, db)
-		return cashflowTrendResponse{
-			Months: months,
-			Summary: cashflowTrendSummary{
-				TotalReceivable: receivable.total.StringFixed(2),
-				TotalPayable:    payable.total.StringFixed(2),
-				Aging: map[string]agingBucket{
-					"0_30":    {Receivable: receivable.ranges["0_30"], Payable: payable.ranges["0_30"]},
-					"31_60":   {Receivable: receivable.ranges["31_60"], Payable: payable.ranges["31_60"]},
-					"61_90":   {Receivable: receivable.ranges["61_90"], Payable: payable.ranges["61_90"]},
-					"90_plus": {Receivable: receivable.ranges["90_plus"], Payable: payable.ranges["90_plus"]},
-				},
-			},
-		}, nil
-	}
-
-	actualRows, err := db.QueryContext(ctx, `
-		SELECT
-			TO_CHAR(d.month, 'YYYY-MM') AS label,
-			COALESCE(income.total, 0) AS income,
-			COALESCE(expense.total, 0) AS expense
-		FROM generate_series(
-			DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months',
-			DATE_TRUNC('month', CURRENT_DATE),
-			'1 month'
-		) AS d(month)
-		LEFT JOIN LATERAL (
-			SELECT COALESCE(SUM(CAST(amount AS numeric)), 0) AS total
-			FROM payments
-			WHERE type = '收入'
-			  AND payment_date >= d.month
-			  AND payment_date < d.month + INTERVAL '1 month'
-		) income ON true
-		LEFT JOIN LATERAL (
-			SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) AS total
-			FROM purchase_orders
-			WHERE status != 'cancelled'
-			  AND order_date >= d.month
-			  AND order_date < d.month + INTERVAL '1 month'
-		) expense ON true
-		ORDER BY d.month
-	`)
+	months, err := cashflowMonthsSQLite(ctx, db)
 	if err != nil {
 		return cashflowTrendResponse{}, err
 	}
-	defer actualRows.Close()
-
-	for actualRows.Next() {
-		var m cashflowTrendMonth
-		var income, expense decimal.Decimal
-		if err := actualRows.Scan(&m.Label, &income, &expense); err != nil {
-			continue
-		}
-		m.Type = "actual"
-		m.Income = income.StringFixed(2)
-		m.Expense = expense.StringFixed(2)
-		m.Net = income.Sub(expense).StringFixed(2)
-		months = append(months, m)
-	}
-
-	hasHistory := false
-	if len(months) > 0 {
-		for _, m := range months {
-			if m.Income != "0.00" || m.Expense != "0.00" {
-				hasHistory = true
-				break
-			}
-		}
-	}
-
-	var avgIncome, avgExpense decimal.Decimal
-	if hasHistory {
-		for i := len(months) - 3; i < len(months); i++ {
-			if i >= 0 {
-				avgIncome = avgIncome.Add(shared.MustParseDecimal(months[i].Income))
-				avgExpense = avgExpense.Add(shared.MustParseDecimal(months[i].Expense))
-			}
-		}
-		avgIncome = avgIncome.Div(decimal.NewFromInt(3))
-		avgExpense = avgExpense.Div(decimal.NewFromInt(3))
-	}
-
-	histWeight := decimal.NewFromFloat(0.6)
-	orderWeight := decimal.NewFromFloat(0.4)
-	if !hasHistory {
-		histWeight = decimal.Zero
-		orderWeight = decimal.NewFromInt(1)
-	}
-
-	forecastRows, err := db.QueryContext(ctx, `
-		SELECT
-			TO_CHAR(d.month, 'YYYY-MM') AS label,
-			COALESCE(so.expected, 0) AS sales_expected,
-			COALESCE(po.expected, 0) AS purchase_expected
-		FROM generate_series(
-			DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month',
-			DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '3 months',
-			'1 month'
-		) AS d(month)
-		LEFT JOIN LATERAL (
-			SELECT COALESCE(SUM(CAST(total_amount AS numeric) - COALESCE(paid_amount, 0)), 0) AS expected
-			FROM sales_orders
-			WHERE status NOT IN ('cancelled', 'invoiced')
-			  AND delivery_date >= d.month
-			  AND delivery_date < d.month + INTERVAL '1 month'
-		) so ON true
-		LEFT JOIN LATERAL (
-			SELECT COALESCE(SUM(CAST(total_amount AS numeric) - COALESCE(paid_amount, 0)), 0) AS expected
-			FROM purchase_orders
-			WHERE status NOT IN ('cancelled', 'received')
-			  AND delivery_date >= d.month
-			  AND delivery_date < d.month + INTERVAL '1 month'
-		) po ON true
-		ORDER BY d.month
-	`)
-	if err != nil {
-		return cashflowTrendResponse{}, err
-	}
-	defer forecastRows.Close()
-
-	for forecastRows.Next() {
-		var m cashflowTrendMonth
-		var salesExpected, purchaseExpected decimal.Decimal
-		if err := forecastRows.Scan(&m.Label, &salesExpected, &purchaseExpected); err != nil {
-			continue
-		}
-		m.Type = "forecast"
-
-		predictedIncome := avgIncome.Mul(histWeight).Add(salesExpected.Mul(orderWeight))
-		predictedExpense := avgExpense.Mul(histWeight).Add(purchaseExpected.Mul(orderWeight))
-
-		m.Income = predictedIncome.StringFixed(2)
-		m.Expense = predictedExpense.StringFixed(2)
-		m.Net = predictedIncome.Sub(predictedExpense).StringFixed(2)
-		months = append(months, m)
-	}
-
 	receivable, _ := getAgingReceivable(ctx, db)
 	payable, _ := getAgingPayable(ctx, db)
-
 	return cashflowTrendResponse{
 		Months: months,
 		Summary: cashflowTrendSummary{
@@ -687,8 +544,7 @@ type agingResult struct {
 	ranges map[string]string
 }
 
-// cashflowMonthsSQLite 现金流趋势（SQLite 专用）: 近 6 个月实际 + 下 3 个月预测，
-// 与 PostgreSQL 的 generate_series + LATERAL 版本语义一致。
+// cashflowMonthsSQLite 现金流趋势: 近 6 个月实际 + 下 3 个月预测，
 // 使用 GROUP BY 一次性聚合（此前逐月查询 18 次 → 4 次）。
 func cashflowMonthsSQLite(ctx context.Context, db *sql.DB) ([]cashflowTrendMonth, error) {
 	now := time.Now()
@@ -779,14 +635,18 @@ func cashflowMonthsSQLite(ctx context.Context, db *sql.DB) ([]cashflowTrendMonth
 	return months, nil
 }
 
+// ageDaysExpr 未收/未付日龄（天）。Turso/SQLite 下勿写 CURRENT_DATE - date：
+// 文本日期会被截成年份做数值减法，结果恒为 ~0。
+const ageDaysExpr = `CAST(julianday(date('now')) - julianday(date(COALESCE(order_date, date('now')))) AS INTEGER)`
+
 func getAgingReceivable(ctx context.Context, db *sql.DB) (agingResult, error) {
 	result := agingResult{ranges: make(map[string]string)}
 	rows, err := db.QueryContext(ctx, `
 		SELECT
 			CASE
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 0 AND 30 THEN '0_30'
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 31 AND 60 THEN '31_60'
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 61 AND 90 THEN '61_90'
+				WHEN `+ageDaysExpr+` BETWEEN 0 AND 30 THEN '0_30'
+				WHEN `+ageDaysExpr+` BETWEEN 31 AND 60 THEN '31_60'
+				WHEN `+ageDaysExpr+` BETWEEN 61 AND 90 THEN '61_90'
 				ELSE '90_plus'
 			END AS age_range,
 			COALESCE(SUM(CAST(total_amount AS numeric) - COALESCE(paid_amount, 0)), 0) AS amount
@@ -794,7 +654,7 @@ func getAgingReceivable(ctx context.Context, db *sql.DB) (agingResult, error) {
 		WHERE status NOT IN ('cancelled')
 		  AND CAST(total_amount AS numeric) - COALESCE(paid_amount, 0) > 0
 		GROUP BY age_range
-		ORDER BY MIN(CURRENT_DATE - COALESCE(order_date, CURRENT_DATE))
+		ORDER BY MIN(`+ageDaysExpr+`)
 	`)
 	if err != nil {
 		return result, err
@@ -824,9 +684,9 @@ func getAgingPayable(ctx context.Context, db *sql.DB) (agingResult, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT
 			CASE
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 0 AND 30 THEN '0_30'
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 31 AND 60 THEN '31_60'
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 61 AND 90 THEN '61_90'
+				WHEN `+ageDaysExpr+` BETWEEN 0 AND 30 THEN '0_30'
+				WHEN `+ageDaysExpr+` BETWEEN 31 AND 60 THEN '31_60'
+				WHEN `+ageDaysExpr+` BETWEEN 61 AND 90 THEN '61_90'
 				ELSE '90_plus'
 			END AS age_range,
 			COALESCE(SUM(CAST(total_amount AS numeric) - COALESCE(paid_amount, 0)), 0) AS amount
@@ -834,7 +694,7 @@ func getAgingPayable(ctx context.Context, db *sql.DB) (agingResult, error) {
 		WHERE status NOT IN ('cancelled')
 		  AND CAST(total_amount AS numeric) - COALESCE(paid_amount, 0) > 0
 		GROUP BY age_range
-		ORDER BY MIN(CURRENT_DATE - COALESCE(order_date, CURRENT_DATE))
+		ORDER BY MIN(`+ageDaysExpr+`)
 	`)
 	if err != nil {
 		return result, err
@@ -863,9 +723,9 @@ func getReceivableAging(ctx context.Context, db *sql.DB) ([]AgingView, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT
 			CASE
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 0 AND 30 THEN '0-30天'
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 31 AND 60 THEN '31-60天'
-				WHEN CURRENT_DATE - COALESCE(order_date, CURRENT_DATE) BETWEEN 61 AND 90 THEN '61-90天'
+				WHEN `+ageDaysExpr+` BETWEEN 0 AND 30 THEN '0-30天'
+				WHEN `+ageDaysExpr+` BETWEEN 31 AND 60 THEN '31-60天'
+				WHEN `+ageDaysExpr+` BETWEEN 61 AND 90 THEN '61-90天'
 				ELSE '90天以上'
 			END AS age_range,
 			COUNT(*) AS count,
@@ -874,7 +734,7 @@ func getReceivableAging(ctx context.Context, db *sql.DB) ([]AgingView, error) {
 		WHERE status NOT IN ('cancelled')
 		  AND CAST(total_amount AS numeric) - COALESCE(paid_amount, 0) > 0
 		GROUP BY age_range
-		ORDER BY MIN(CURRENT_DATE - COALESCE(order_date, CURRENT_DATE))
+		ORDER BY MIN(`+ageDaysExpr+`)
 	`)
 	if err != nil {
 		return nil, err
@@ -940,13 +800,14 @@ func getMonthOverMonth(ctx context.Context, db *sql.DB) (current, previous month
 	for i, mc := range []*monthCashflow{&current, &previous} {
 		offset := i
 		var income, expense decimal.Decimal
+		// 区间 [月初-offset 月, 月初-(offset-1) 月)，即 offset=0 为本月、1 为上月。
 		if err := db.QueryRowContext(ctx, fmt.Sprintf(`
 			SELECT COALESCE(SUM(CAST(amount AS numeric)), 0)
 			FROM payments
 			WHERE type = '收入'
-			  AND payment_date >= DATE_TRUNC('month', CURRENT_DATE)::date - INTERVAL '%d months'
-			  AND payment_date < DATE_TRUNC('month', CURRENT_DATE)::date - INTERVAL '%d months'
-		`, offset, offset-1)).Scan(&income); err != nil {
+			  AND payment_date >= date('now','start of month','-%d months')
+			  AND payment_date < date('now','start of month','+%d months')
+		`, offset, 1-offset)).Scan(&income); err != nil {
 			return current, previous, err
 		}
 
@@ -954,9 +815,9 @@ func getMonthOverMonth(ctx context.Context, db *sql.DB) (current, previous month
 			SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0)
 			FROM purchase_orders
 			WHERE status != 'cancelled'
-			  AND order_date >= DATE_TRUNC('month', CURRENT_DATE)::date - INTERVAL '%d months'
-			  AND order_date < DATE_TRUNC('month', CURRENT_DATE)::date - INTERVAL '%d months'
-		`, offset, offset-1)).Scan(&expense); err != nil {
+			  AND order_date >= date('now','start of month','-%d months')
+			  AND order_date < date('now','start of month','+%d months')
+		`, offset, 1-offset)).Scan(&expense); err != nil {
 			return current, previous, err
 		}
 

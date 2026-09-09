@@ -103,8 +103,8 @@ func (h *Handler) FinancePage(c *gin.Context) {
 	var total int64
 	_ = h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM payments`).Scan(&total)
 	var income, expense, receivable, payable decimal.Decimal
-	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)), 0) FROM payments WHERE type = '收入' AND payment_date >= DATE_TRUNC('month', CURRENT_DATE)::date`).Scan(&income)
-	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) FROM purchase_orders WHERE order_date >= DATE_TRUNC('month', CURRENT_DATE)::date AND status != 'cancelled'`).Scan(&expense)
+	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(amount AS numeric)), 0) FROM payments WHERE type = '收入' AND payment_date >= date('now','start of month')`).Scan(&income)
+	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(total_amount AS numeric)), 0) FROM purchase_orders WHERE order_date >= date('now','start of month') AND status != 'cancelled'`).Scan(&expense)
 	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(total_amount AS numeric) - COALESCE(paid_amount, 0)), 0) FROM sales_orders WHERE status != 'cancelled'`).Scan(&receivable)
 	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CAST(total_amount AS numeric) - COALESCE(paid_amount, 0)), 0) FROM purchase_orders WHERE status != 'cancelled'`).Scan(&payable)
 	summary := pages.FinanceSummary{
@@ -156,7 +156,7 @@ func (h *Handler) PaymentCreate(c *gin.Context) {
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, partner_name, notes, client_token, payment_date, created_at)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NOW(), NOW())`,
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), (strftime('%Y-%m-%dT%H:%M:%SZ','now')), (strftime('%Y-%m-%dT%H:%M:%SZ','now')))`,
 		uuid.New(), payType, amountStr, c.PostForm("partner_name"), c.PostForm("notes"), token); err != nil {
 		if token != "" && shared.IsUniqueViolation(err) {
 			_ = tx.Rollback()

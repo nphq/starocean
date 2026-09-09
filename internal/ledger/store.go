@@ -42,7 +42,7 @@ func ListAccounts(ctx context.Context, db DBTX, q string, category string, leave
 		sqlStr += " AND is_leaf = TRUE AND active = TRUE"
 	}
 	if q != "" {
-		sqlStr += fmt.Sprintf(" AND (code ILIKE $%d OR name ILIKE $%d)", n, n)
+		sqlStr += fmt.Sprintf(" AND (code LIKE $%d OR name LIKE $%d)", n, n)
 		args = append(args, "%"+q+"%")
 	}
 	sqlStr += " ORDER BY sort_order, code"
@@ -82,7 +82,7 @@ func UpsertAccount(ctx context.Context, db DBTX, a Account) error {
 }
 
 func ListPeriods(ctx context.Context, db DBTX, year int) ([]Period, error) {
-	q := `SELECT year, month, start_date::text, end_date::text, status, closed_at, closed_by
+	q := `SELECT year, month, start_date, end_date, status, closed_at, closed_by
 		FROM gl_periods WHERE company_id = $1`
 	args := []interface{}{companyID}
 	if year > 0 {
@@ -115,7 +115,7 @@ func getPeriod(ctx context.Context, db DBTX, year, month int) (Period, error) {
 	var p Period
 	var closedAt sql.NullTime
 	err := db.QueryRowContext(ctx, `
-		SELECT year, month, start_date::text, end_date::text, status, closed_at, closed_by
+		SELECT year, month, start_date, end_date, status, closed_at, closed_by
 		FROM gl_periods WHERE year=$1 AND month=$2 AND company_id=$3`,
 		year, month, companyID).Scan(&p.Year, &p.Month, &p.StartDate, &p.EndDate, &p.Status, &closedAt, &p.ClosedBy)
 	if err != nil {
@@ -368,7 +368,7 @@ func UpdateVoucher(ctx context.Context, db DBTX, id uuid.UUID, in VoucherInput) 
 	}
 	if _, err := db.ExecContext(ctx, `
 		UPDATE gl_vouchers SET voucher_date=$2, period_year=$3, period_month=$4, attachment_count=$5,
-			summary=$6, debit_total=$7, credit_total=$8, updated_at=NOW()
+			summary=$6, debit_total=$7, credit_total=$8, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE id=$1 AND status='draft'`,
 		id, dateStr(dt), year, month, in.AttachmentCount, summary, dr, cr); err != nil {
 		return Voucher{}, err

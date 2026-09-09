@@ -21,10 +21,8 @@ import (
 	"github.com/nphq/starocean/internal/shared"
 )
 
-//go:embed internal/db/migrations
-var migrationsFS embed.FS
-
 // 静态资源：Tailwind 构建产物 + vendored htmx（无前端构建链）。
+// DB schema 由 internal/db 自内嵌（schema.sql），此处无需再 embed。
 //
 //go:embed public
 var publicFS embed.FS
@@ -43,8 +41,8 @@ func main() {
 	}
 
 	port := flag.String("port", envOr("PORT", "8080"), "listen port")
-	// 默认单机 SQLite（零依赖），PostgreSQL 通过 postgres:// DSN 可选
-	dbURL := flag.String("db", envOr("DATABASE_URL", "sqlite:starocean.db"), "database URL (sqlite:<path> 或 postgres://...)")
+	// 单机 Turso 文件库（SQLite 兼容引擎，纯 Go、无 CGO，单二进制极简部署）
+	dbURL := flag.String("db", envOr("DATABASE_URL", "sqlite:starocean.db"), "database URL (sqlite:<path> or turso:<path>, Turso engine)")
 	secretKey := flag.String("secret", envOr("SECRET_KEY", ""), "session secret key")
 	seedFlag := flag.Bool("seed", false, "seed demo data on startup")
 	productCount := flag.Int("products", 0, "number of random products to generate (use with -seed)")
@@ -73,9 +71,9 @@ func main() {
 	}
 	defer func() { _ = database.Close() }()
 
-	if err := db.Migrate(database, *dbURL, migrationsFS); err != nil {
+	if err := db.Migrate(database); err != nil {
 		// P0: 迁移失败必须阻断启动（此前仅 log 继续 serve，会导致半迁移库对外服务）。
-		// golang-migrate 的 dirty 状态也归为此类错误，直接退出由运维手动修复。
+		// schema_migrations 的 dirty 状态也归为此类错误，直接退出由运维手动修复。
 		log.Fatalf("migrate: %v", err)
 	}
 

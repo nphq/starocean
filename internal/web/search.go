@@ -19,7 +19,7 @@ func (h *Handler) SearchPage(c *gin.Context) {
 	ctx := c.Request.Context()
 	like := "%" + q + "%"
 
-	rows, _ := h.db.QueryContext(ctx, `SELECT id, code, name FROM products WHERE code ILIKE $1 OR name ILIKE $1 ORDER BY name LIMIT 10`, like)
+	rows, _ := h.db.QueryContext(ctx, `SELECT id, code, name FROM products WHERE code LIKE $1 OR name LIKE $1 ORDER BY name LIMIT 10`, like)
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -29,7 +29,7 @@ func (h *Handler) SearchPage(c *gin.Context) {
 			}
 		}
 	}
-	rows, _ = h.db.QueryContext(ctx, `SELECT id, code, name FROM customers WHERE code ILIKE $1 OR name ILIKE $1 ORDER BY name LIMIT 10`, like)
+	rows, _ = h.db.QueryContext(ctx, `SELECT id, code, name FROM customers WHERE code LIKE $1 OR name LIKE $1 ORDER BY name LIMIT 10`, like)
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -39,7 +39,7 @@ func (h *Handler) SearchPage(c *gin.Context) {
 			}
 		}
 	}
-	rows, _ = h.db.QueryContext(ctx, `SELECT id, code, name FROM suppliers WHERE code ILIKE $1 OR name ILIKE $1 ORDER BY name LIMIT 10`, like)
+	rows, _ = h.db.QueryContext(ctx, `SELECT id, code, name FROM suppliers WHERE code LIKE $1 OR name LIKE $1 ORDER BY name LIMIT 10`, like)
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -51,7 +51,7 @@ func (h *Handler) SearchPage(c *gin.Context) {
 	}
 	rows, _ = h.db.QueryContext(ctx, `SELECT so.id, so.order_no, COALESCE(c.name,'') FROM sales_orders so
 		LEFT JOIN customers c ON so.customer_id = c.id
-		WHERE so.order_no ILIKE $1 OR c.name ILIKE $1 ORDER BY so.created_at DESC LIMIT 10`, like)
+		WHERE so.order_no LIKE $1 OR c.name LIKE $1 ORDER BY so.created_at DESC LIMIT 10`, like)
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -63,7 +63,7 @@ func (h *Handler) SearchPage(c *gin.Context) {
 	}
 	rows, _ = h.db.QueryContext(ctx, `SELECT po.id, po.order_no, COALESCE(s.name,'') FROM purchase_orders po
 		LEFT JOIN suppliers s ON po.supplier_id = s.id
-		WHERE po.order_no ILIKE $1 OR s.name ILIKE $1 ORDER BY po.created_at DESC LIMIT 10`, like)
+		WHERE po.order_no LIKE $1 OR s.name LIKE $1 ORDER BY po.created_at DESC LIMIT 10`, like)
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {

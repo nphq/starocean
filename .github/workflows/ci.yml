@@ -8,26 +8,8 @@ on:
 jobs:
   go:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        backend: [sqlite, postgres]
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: starocean
-          POSTGRES_USER: starocean
-          POSTGRES_PASSWORD: starocean
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U starocean -d starocean"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 12
     env:
-      STAROCEAN_TEST_DSN: ${{ matrix.backend == 'postgres' && 'postgres://starocean:starocean@localhost:5432/starocean?sslmode=disable' || 'sqlite:/tmp/starocean_ci.db' }}
+      STAROCEAN_TEST_DSN: sqlite:/tmp/starocean_ci.db
     steps:
       - uses: actions/checkout@v5
 
@@ -51,13 +33,13 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      # SQLite/PG 双跑覆盖方言差异；集成测试连接失败一律 Fatal（静默 Skip 即假绿，
-      # 仅性能基线缺库与 PG 任务下 SQLite 专属迁移测试允许跳过，见下方的 SKIP 门禁）。
+      # 集成测试连接失败一律 Fatal（静默 Skip 即假绿）。
+      # DDL dump 工具用 go:build dumpddl，不在默认 ./... 中，故无 Skip 白名单。
       - name: go test (race)
         run: |
           go test -race -count=1 -v ./... 2>&1 | tee /tmp/gotest.log
           status=${PIPESTATUS[0]}
-          if grep -E '^[[:space:]]*--- SKIP' /tmp/gotest.log | grep -v -E 'TestProductSearchBaseline|TestMigrateSQLite|cannot get cursor|perf DB|need >= '; then
+          if grep -E '^[[:space:]]*--- SKIP' /tmp/gotest.log; then
             echo "::error::unexpected test SKIP (silent skip = false green)"
             exit 1
           fi

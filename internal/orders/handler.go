@@ -118,12 +118,12 @@ func (h *Handler) SalesPage(c *gin.Context) {
 	offset := int32((page - 1) * 20)
 
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT so.id, so.order_no, COALESCE(so.customer_id, gen_random_uuid()),
+		SELECT so.id, so.order_no, COALESCE(so.customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(c.name, '') as customer_name, COALESCE(so.status, 'draft'),
 		       COALESCE(so.total_amount, 0), COALESCE(so.paid_amount, 0),
 		       COALESCE(so.order_date, '1970-01-01'), COALESCE(so.notes, ''),
 		       COALESCE(so.created_at, '1970-01-01'),
-		       COALESCE(so.company_id, 'default'), COALESCE(so.properties::text, '{}')
+		       COALESCE(so.company_id, 'default'), COALESCE(so.properties, '{}')
 		FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id
 		ORDER BY so.created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
@@ -231,8 +231,8 @@ func (h *Handler) SalesDetailPage(c *gin.Context) {
 	}
 
 	itemRows, err := h.db.QueryContext(ctx, `
-		SELECT soi.id, COALESCE(soi.order_id, gen_random_uuid()),
-		       COALESCE(soi.product_id, gen_random_uuid()),
+		SELECT soi.id, COALESCE(soi.order_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
+		       COALESCE(soi.product_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
 		       soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0), COALESCE(soi.tax_rate, 0)
 		FROM sales_order_items soi
@@ -361,16 +361,16 @@ func (h *Handler) SalesSearchAPI(c *gin.Context) {
 	query := c.Query("q")
 
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT so.id, so.order_no, COALESCE(so.customer_id, gen_random_uuid()),
+		SELECT so.id, so.order_no, COALESCE(so.customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(c.name, '') as customer_name, COALESCE(so.status, 'draft'),
 		       COALESCE(so.total_amount, 0), COALESCE(so.paid_amount, 0),
 		       COALESCE(so.order_date, '1970-01-01'), COALESCE(so.notes, ''),
 		       COALESCE(so.created_at, '1970-01-01'),
-		       COALESCE(so.company_id, 'default'), COALESCE(so.properties::text, '{}')
+		       COALESCE(so.company_id, 'default'), COALESCE(so.properties, '{}')
 		FROM sales_orders so
 		LEFT JOIN customers c ON so.customer_id = c.id
-		WHERE so.order_no ILIKE '%' || $1 || '%'
-		   OR c.name ILIKE '%' || $1 || '%'
+		WHERE so.order_no LIKE '%' || $1 || '%'
+		   OR c.name LIKE '%' || $1 || '%'
 		ORDER BY so.created_at DESC
 		LIMIT 20`, query)
 	if err != nil {
@@ -400,12 +400,12 @@ func (h *Handler) PurchasesPage(c *gin.Context) {
 	offset := int32((page - 1) * 20)
 
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT po.id, po.order_no, COALESCE(po.supplier_id, gen_random_uuid()),
+		SELECT po.id, po.order_no, COALESCE(po.supplier_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(s.name, '') as supplier_name, COALESCE(po.status, 'draft'),
 		       COALESCE(po.total_amount, 0), COALESCE(po.paid_amount, 0),
 		       COALESCE(po.order_date, '1970-01-01'), COALESCE(po.notes, ''),
 		       COALESCE(po.created_at, '1970-01-01'),
-		       COALESCE(po.company_id, 'default'), COALESCE(po.properties::text, '{}')
+		       COALESCE(po.company_id, 'default'), COALESCE(po.properties, '{}')
 		FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id
 		ORDER BY po.created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
@@ -508,8 +508,8 @@ func (h *Handler) PurchaseDetailPage(c *gin.Context) {
 	}
 
 	itemRows, err := h.db.QueryContext(ctx, `
-		SELECT poi.id, COALESCE(poi.order_id, gen_random_uuid()),
-		       COALESCE(poi.product_id, gen_random_uuid()),
+		SELECT poi.id, COALESCE(poi.order_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
+		       COALESCE(poi.product_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
 		       poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0), COALESCE(poi.tax_rate, 0)
 		FROM purchase_order_items poi
@@ -638,16 +638,16 @@ func (h *Handler) PurchaseSearchAPI(c *gin.Context) {
 	query := c.Query("q")
 
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT po.id, po.order_no, COALESCE(po.supplier_id, gen_random_uuid()),
+		SELECT po.id, po.order_no, COALESCE(po.supplier_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(s.name, '') as supplier_name, COALESCE(po.status, 'draft'),
 		       COALESCE(po.total_amount, 0), COALESCE(po.paid_amount, 0),
 		       COALESCE(po.order_date, '1970-01-01'), COALESCE(po.notes, ''),
 		       COALESCE(po.created_at, '1970-01-01'),
-		       COALESCE(po.company_id, 'default'), COALESCE(po.properties::text, '{}')
+		       COALESCE(po.company_id, 'default'), COALESCE(po.properties, '{}')
 		FROM purchase_orders po
 		LEFT JOIN suppliers s ON po.supplier_id = s.id
-		WHERE po.order_no ILIKE '%' || $1 || '%'
-		   OR s.name ILIKE '%' || $1 || '%'
+		WHERE po.order_no LIKE '%' || $1 || '%'
+		   OR s.name LIKE '%' || $1 || '%'
 		ORDER BY po.created_at DESC
 		LIMIT 20`, query)
 	if err != nil {

@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/nphq/starocean/internal/attendance"
 	"github.com/nphq/starocean/internal/customers"
 	"github.com/nphq/starocean/internal/dashboard"
 	"github.com/nphq/starocean/internal/finance"
@@ -16,15 +15,11 @@ import (
 	"github.com/nphq/starocean/internal/ledger"
 	mw "github.com/nphq/starocean/internal/middleware"
 	"github.com/nphq/starocean/internal/orders"
-	"github.com/nphq/starocean/internal/partnernotes"
-	"github.com/nphq/starocean/internal/personnel"
-	"github.com/nphq/starocean/internal/picking"
 	"github.com/nphq/starocean/internal/print"
 	"github.com/nphq/starocean/internal/products"
 	"github.com/nphq/starocean/internal/shared"
 	"github.com/nphq/starocean/internal/suppliers"
 	"github.com/nphq/starocean/internal/web"
-	"github.com/nphq/starocean/internal/workreports"
 )
 
 func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName string) {
@@ -35,12 +30,7 @@ func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName st
 	invH := inventory.New(db)
 	finH := finance.New(db)
 	dashH := dashboard.New(db)
-	attendanceH := attendance.New(db)
-	noteH := partnernotes.New(db)
-	wrH := workreports.New(db)
-	persH := personnel.New(db)
 	printH := print.New(db, companyName)
-	pickH := picking.New(db)
 	ledgerH := ledger.New(db)
 
 	r.POST("/api/login", mw.LoginHandler(db))
@@ -60,9 +50,6 @@ func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName st
 	{
 		auth.GET("/dashboard", dashH.DashboardDataAPI)
 		auth.GET("/dashboard/chart", dashH.ChartDataAPI)
-
-		auth.GET("/attendance", attendanceH.AttendancePage)
-		auth.POST("/attendance/import", attendanceH.AttendanceImport)
 
 		auth.GET("/products", prodH.ProductsPage)
 		auth.POST("/products", prodH.ProductCreate)
@@ -124,19 +111,6 @@ func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName st
 		auth.GET("/finance/receivable/aging", finH.ReceivableAgingAPI)
 		auth.GET("/finance/month-over-month", finH.MonthOverMonthAPI)
 
-		auth.POST("/partner-notes", noteH.Create)
-		auth.GET("/partner-notes/:partnerType/:partnerId", noteH.ListByPartner)
-		auth.DELETE("/partner-notes/:id", noteH.Delete)
-
-		auth.GET("/workreports", wrH.ReportsPage)
-		auth.POST("/workreports", wrH.ReportCreate)
-		auth.GET("/workreports/templates", wrH.TemplatesPage)
-		auth.POST("/workreports/templates", wrH.TemplateCreate)
-		auth.DELETE("/workreports/templates/:id", wrH.TemplateDelete)
-		auth.POST("/workreports/weekly/generate", wrH.WeeklyGenerateCreate)
-		auth.GET("/workreports/:id", wrH.ReportDetailPage)
-		auth.PUT("/workreports/:id", wrH.ReportUpdate)
-
 		auth.GET("/finance/reimbursements", finH.ReimbursementsPage)
 		auth.POST("/finance/reimbursements", finH.ReimbursementCreate)
 		auth.GET("/finance/reimbursements/:id", finH.ReimbursementDetailPage)
@@ -187,34 +161,7 @@ func RegisterRoutes(r *gin.Engine, db *sql.DB, publicFS embed.FS, companyName st
 		auth.GET("/ledger/reports/cashflow", ledgerH.ReportCashFlow)
 		auth.POST("/ledger/openings", ledgerH.OpeningsSave)
 
-		auth.GET("/personnel/departments", persH.DepartmentsPage)
-		auth.POST("/personnel/departments", persH.DepartmentCreate)
-		auth.PUT("/personnel/departments/:id", persH.DepartmentUpdate)
-		auth.GET("/personnel/positions", persH.PositionsPage)
-		auth.POST("/personnel/positions", persH.PositionCreate)
-		auth.PUT("/personnel/positions/:id", persH.PositionUpdate)
-		auth.DELETE("/personnel/positions/:id", persH.PositionDelete)
-		auth.GET("/personnel/employees", persH.EmployeesPage)
-		auth.POST("/personnel/employees", persH.EmployeeCreate)
-		auth.GET("/personnel/employees/:id", persH.EmployeeDetailPage)
-		auth.PUT("/personnel/employees/:id", persH.EmployeeUpdate)
-		auth.POST("/personnel/employees/:id/deactivate", persH.EmployeeDeactivate)
-		auth.GET("/personnel/contracts", persH.ContractsPage)
-		auth.POST("/personnel/contracts", persH.ContractCreate)
-		auth.GET("/personnel/salary", persH.SalaryListPage)
-		auth.POST("/personnel/salary/batch", persH.SalaryBatchCreate)
-		auth.GET("/personnel/salary/summary", persH.SalarySummaryAPI)
-		auth.GET("/personnel/attendance-stats", persH.AttendanceStatsAPI)
-		auth.GET("/personnel/salary/:id", persH.SalaryDetailPage)
-		auth.POST("/personnel/salary/:id/confirm", persH.SalaryConfirm)
-
 		auth.GET("/search", shared.GlobalSearchAPI(db))
-
-		auth.GET("/picking", pickH.PickingOrdersPage)
-		auth.POST("/picking/generate", pickH.GeneratePickingOrder)
-		auth.GET("/picking/:id", pickH.PickingDetailPage)
-		auth.POST("/picking/:id/items/:itemId", pickH.PickingItemUpdate)
-		auth.POST("/picking/:id/complete", pickH.PickingComplete)
 	}
 
 	printed := r.Group("/")

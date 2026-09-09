@@ -2,7 +2,6 @@ package web
 
 import (
 	"strconv"
-	"time"
 )
 
 // getPage 分页参数解析（1 起，封顶 10000）。
@@ -16,8 +15,4 @@ func getPage(q map[string][]string, key string) int32 {
 		}
 	}
 	return 1
-}
-
-func currentMonth() string {
-	return time.Now().Format("2006-01")
 }

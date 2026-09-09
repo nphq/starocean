@@ -22,8 +22,6 @@ templ Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) {
 	</div>
 	<div class="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-3">
 		@component.Stat("待审批报销", strconv.FormatInt(d.PendingReimbursements, 10))
-		@component.Stat("在职员工", strconv.FormatInt(d.ActiveEmployees, 10))
-		@component.Stat("合同将到期", strconv.FormatInt(d.ExpiringContracts, 10))
 	</div>
 	<div class="card mb-8 p-6 md:p-8">
 		<div class="mb-5 flex items-end justify-between gap-3">

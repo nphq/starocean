@@ -30,9 +30,9 @@ const productCols = `id, code, name, COALESCE(category,'') as category, COALESCE
        COALESCE(safety_stock,0) as safety_stock, COALESCE(current_stock,0) as current_stock,
        COALESCE(pricing_type, 'standard') as pricing_type,
        COALESCE(shelf_life_days,0) as shelf_life_days,
-       COALESCE(created_at, '1970-01-01'::timestamptz) as created_at,
+       COALESCE(created_at, '1970-01-01') as created_at,
        COALESCE(company_id,'default') as company_id,
-       COALESCE(properties::text,'{}') as properties`
+       COALESCE(properties,'{}') as properties`
 
 const listProductsSQL = `SELECT ` + productCols + ` FROM products ORDER BY products.created_at DESC NULLS LAST, products.id DESC LIMIT $1`
 
@@ -43,17 +43,17 @@ const listProductsAfterSQL = `SELECT ` + productCols + ` FROM products
 const getProductSQL = `SELECT ` + productCols + ` FROM products WHERE id = $1`
 
 const searchProductsSQL = `SELECT ` + productCols + ` FROM products
-WHERE search_text ILIKE '%' || $1 || '%'
+WHERE search_text LIKE '%' || $1 || '%'
 ORDER BY name LIMIT 20`
 
 const createProductSQL = `INSERT INTO products (id, code, name, category, unit, sale_price, cost_price, safety_stock, pricing_type, shelf_life_days, properties)
-VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,'')::numeric, NULLIF($7,'')::numeric, $8, COALESCE(NULLIF($9,''), 'standard'), $10, $11::jsonb)
+VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), CAST(NULLIF($6,'') AS NUMERIC), CAST(NULLIF($7,'') AS NUMERIC), $8, COALESCE(NULLIF($9,''), 'standard'), $10, $11)
 RETURNING ` + productCols
 
 const updateProductSQL = `UPDATE products SET name = $2, category = NULLIF($3,''), unit = NULLIF($4,''),
-       sale_price = NULLIF($5,'')::numeric, cost_price = NULLIF($6,'')::numeric, safety_stock = $7,
+       sale_price = CAST(NULLIF($5,'') AS NUMERIC), cost_price = CAST(NULLIF($6,'') AS NUMERIC), safety_stock = $7,
        pricing_type = COALESCE(NULLIF($8,''), pricing_type), shelf_life_days = $9,
-       properties = properties || $10::jsonb, updated_at = NOW()
+       properties = json_patch(properties, $10), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 WHERE id = $1
 RETURNING ` + productCols
 

@@ -35,16 +35,14 @@ func GlobalSearchAPI(db *sql.DB) gin.HandlerFunc {
 			supps     []models.Supplier
 			sales     []models.SalesOrder
 			purchases []models.PurchaseOrder
-			emps      []models.Employee
 			wg        sync.WaitGroup
 		)
-		wg.Add(6)
+		wg.Add(5)
 		go func() { defer wg.Done(); prods = searchProducts(ctx, db, pattern) }()
 		go func() { defer wg.Done(); custs = searchCustomers(ctx, db, pattern) }()
 		go func() { defer wg.Done(); supps = searchSuppliers(ctx, db, pattern) }()
 		go func() { defer wg.Done(); sales = searchSalesOrders(ctx, db, pattern) }()
 		go func() { defer wg.Done(); purchases = searchPurchaseOrders(ctx, db, pattern) }()
-		go func() { defer wg.Done(); emps = searchEmployees(ctx, db, pattern) }()
 		wg.Wait()
 
 		c.JSON(http.StatusOK, gin.H{
@@ -53,7 +51,6 @@ func GlobalSearchAPI(db *sql.DB) gin.HandlerFunc {
 			"suppliers":       supps,
 			"sales_orders":    sales,
 			"purchase_orders": purchases,
-			"employees":       emps,
 		})
 	}
 }
@@ -64,8 +61,8 @@ func searchProducts(ctx context.Context, db *sql.DB, pattern string) []models.Pr
 		COALESCE(current_stock,0), COALESCE(pricing_type,'standard'),
 		COALESCE(shelf_life_days,0),
 		COALESCE(created_at,'1970-01-01'),
-		COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
-		FROM products WHERE search_text ILIKE $1 ORDER BY name LIMIT 20`, pattern)
+		COALESCE(company_id,'default'), COALESCE(properties,'{}')
+		FROM products WHERE search_text LIKE $1 ORDER BY name LIMIT 20`, pattern)
 	if err != nil {
 		return []models.Product{}
 	}
@@ -85,8 +82,8 @@ func searchCustomers(ctx context.Context, db *sql.DB, pattern string) []models.C
 	rows, err := db.QueryContext(ctx, `SELECT id, code, name, COALESCE(contact_person,''), COALESCE(phone,''),
 		COALESCE(email,''), COALESCE(address,''), COALESCE(credit_limit, 0), COALESCE(balance, 0),
 		COALESCE(created_at,'1970-01-01'),
-		COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
-		FROM customers WHERE name ILIKE $1 OR code ILIKE $1 ORDER BY name LIMIT 20`, pattern)
+		COALESCE(company_id,'default'), COALESCE(properties,'{}')
+		FROM customers WHERE name LIKE $1 OR code LIKE $1 ORDER BY name LIMIT 20`, pattern)
 	if err != nil {
 		return []models.Customer{}
 	}
@@ -105,8 +102,8 @@ func searchCustomers(ctx context.Context, db *sql.DB, pattern string) []models.C
 func searchSuppliers(ctx context.Context, db *sql.DB, pattern string) []models.Supplier {
 	rows, err := db.QueryContext(ctx, `SELECT id, code, name, COALESCE(contact_person,''), COALESCE(phone,''),
 		COALESCE(email,''), COALESCE(address,''), COALESCE(balance, 0), COALESCE(created_at,'1970-01-01'),
-		COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
-		FROM suppliers WHERE name ILIKE $1 OR code ILIKE $1 ORDER BY name LIMIT 20`, pattern)
+		COALESCE(company_id,'default'), COALESCE(properties,'{}')
+		FROM suppliers WHERE name LIKE $1 OR code LIKE $1 ORDER BY name LIMIT 20`, pattern)
 	if err != nil {
 		return []models.Supplier{}
 	}
@@ -123,13 +120,13 @@ func searchSuppliers(ctx context.Context, db *sql.DB, pattern string) []models.S
 }
 
 func searchSalesOrders(ctx context.Context, db *sql.DB, pattern string) []models.SalesOrder {
-	rows, err := db.QueryContext(ctx, `SELECT so.id, so.order_no, COALESCE(so.customer_id, gen_random_uuid()),
+	rows, err := db.QueryContext(ctx, `SELECT so.id, so.order_no, COALESCE(so.customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		COALESCE(c.name,''), COALESCE(so.status,'draft'), COALESCE(so.total_amount, 0),
 		COALESCE(so.paid_amount, 0), COALESCE(so.order_date,'1970-01-01'),
 		COALESCE(so.delivery_date,'1970-01-01'), COALESCE(so.notes,''), COALESCE(so.created_at,'1970-01-01'),
-		COALESCE(so.company_id,'default'), COALESCE(so.properties::text,'{}')
+		COALESCE(so.company_id,'default'), COALESCE(so.properties,'{}')
 		FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id
-		WHERE so.order_no ILIKE $1 OR c.name ILIKE $1 ORDER BY so.created_at DESC LIMIT 20`, pattern)
+		WHERE so.order_no LIKE $1 OR c.name LIKE $1 ORDER BY so.created_at DESC LIMIT 20`, pattern)
 	if err != nil {
 		return []models.SalesOrder{}
 	}
@@ -146,13 +143,13 @@ func searchSalesOrders(ctx context.Context, db *sql.DB, pattern string) []models
 }
 
 func searchPurchaseOrders(ctx context.Context, db *sql.DB, pattern string) []models.PurchaseOrder {
-	rows, err := db.QueryContext(ctx, `SELECT po.id, po.order_no, COALESCE(po.supplier_id, gen_random_uuid()),
+	rows, err := db.QueryContext(ctx, `SELECT po.id, po.order_no, COALESCE(po.supplier_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		COALESCE(s.name,''), COALESCE(po.status,'draft'), COALESCE(po.total_amount, 0),
 		COALESCE(po.paid_amount, 0), COALESCE(po.order_date,'1970-01-01'),
 		COALESCE(po.delivery_date,'1970-01-01'), COALESCE(po.notes,''), COALESCE(po.created_at,'1970-01-01'),
-		COALESCE(po.company_id,'default'), COALESCE(po.properties::text,'{}')
+		COALESCE(po.company_id,'default'), COALESCE(po.properties,'{}')
 		FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id
-		WHERE po.order_no ILIKE $1 OR s.name ILIKE $1 ORDER BY po.created_at DESC LIMIT 20`, pattern)
+		WHERE po.order_no LIKE $1 OR s.name LIKE $1 ORDER BY po.created_at DESC LIMIT 20`, pattern)
 	if err != nil {
 		return []models.PurchaseOrder{}
 	}
@@ -168,33 +165,15 @@ func searchPurchaseOrders(ctx context.Context, db *sql.DB, pattern string) []mod
 	return items
 }
 
-func searchEmployees(ctx context.Context, db *sql.DB, pattern string) []models.Employee {
-	rows, err := db.QueryContext(ctx, `SELECT e.id, e.code, e.name FROM employees e
-		WHERE e.name ILIKE $1 OR e.code ILIKE $1 ORDER BY e.name LIMIT 20`, pattern)
-	if err != nil {
-		return []models.Employee{}
-	}
-	defer rows.Close()
-	var items []models.Employee
-	for rows.Next() {
-		var emp models.Employee
-		if err := rows.Scan(&emp.ID, &emp.Code, &emp.Name); err != nil {
-			continue
-		}
-		items = append(items, emp)
-	}
-	return items
-}
-
 func SalesExportXLSX(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		orders := []models.SalesOrder{}
-		rows, err := db.QueryContext(ctx, `SELECT so.id, so.order_no, COALESCE(so.customer_id, gen_random_uuid()),
+		rows, err := db.QueryContext(ctx, `SELECT so.id, so.order_no, COALESCE(so.customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 			COALESCE(c.name,''), COALESCE(so.status,'draft'), COALESCE(so.total_amount, 0),
 			COALESCE(so.paid_amount, 0), COALESCE(so.order_date,'1970-01-01'),
 			COALESCE(so.delivery_date,'1970-01-01'), COALESCE(so.notes,''), COALESCE(so.created_at,'1970-01-01'),
-			COALESCE(so.company_id,'default'), COALESCE(so.properties::text,'{}')
+			COALESCE(so.company_id,'default'), COALESCE(so.properties,'{}')
 			FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id
 			ORDER BY so.created_at DESC LIMIT 1000`)
 		if err != nil {

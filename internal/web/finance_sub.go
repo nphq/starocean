@@ -143,7 +143,7 @@ func (h *Handler) reimbAction(c *gin.Context, fn func(ctx context.Context, id uu
 
 func (h *Handler) ReimbursementSubmit(c *gin.Context) {
 	h.reimbAction(c, func(ctx context.Context, id uuid.UUID) error {
-		res, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='pending_approval', updated_at=NOW() WHERE id=$1 AND status='draft'", id)
+		res, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='pending_approval', updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1 AND status='draft'", id)
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func (h *Handler) ReimbursementSubmit(c *gin.Context) {
 
 func (h *Handler) ReimbursementApprove(c *gin.Context) {
 	h.reimbAction(c, func(ctx context.Context, id uuid.UUID) error {
-		res, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='approved', approver_name=$1, approved_at=NOW(), updated_at=NOW() WHERE id=$2 AND status='pending_approval'", "web", id)
+		res, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='approved', approver_name=$1, approved_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')), updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$2 AND status='pending_approval'", "web", id)
 		if err != nil {
 			return err
 		}
@@ -176,7 +176,7 @@ func (h *Handler) ReimbursementPay(c *gin.Context) {
 		defer tx.Rollback()
 		var amount decimal.Decimal
 		var applicantName, status, category string
-		if err := tx.QueryRowContext(ctx, "SELECT amount, applicant_name, status, COALESCE(category,'') FROM reimbursements WHERE id=$1 FOR UPDATE", id).Scan(&amount, &applicantName, &status, &category); err != nil {
+		if err := tx.QueryRowContext(ctx, "SELECT amount, applicant_name, status, COALESCE(category,'') FROM reimbursements WHERE id=$1", id).Scan(&amount, &applicantName, &status, &category); err != nil {
 			return err
 		}
 		if status != "approved" {
@@ -184,10 +184,10 @@ func (h *Handler) ReimbursementPay(c *gin.Context) {
 		}
 		paymentID := uuid.New()
 		if _, err := tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, partner_name, notes, payment_date)
-			VALUES ($1, '支出', $2, $3, '报销付款', NOW())`, paymentID, amount.StringFixed(2), applicantName); err != nil {
+			VALUES ($1, '支出', $2, $3, '报销付款', (strftime('%Y-%m-%dT%H:%M:%SZ','now')))`, paymentID, amount.StringFixed(2), applicantName); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE reimbursements SET status='paid', payment_id=$1, updated_at=NOW() WHERE id=$2 AND status='approved'", paymentID, id); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE reimbursements SET status='paid', payment_id=$1, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$2 AND status='approved'", paymentID, id); err != nil {
 			return err
 		}
 		if err := ledger.PostReimbursement(ctx, tx, id, amount.StringFixed(2), category, applicantName, "web"); err != nil {

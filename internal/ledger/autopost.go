@@ -241,7 +241,7 @@ func postSalesConfirm(ctx context.Context, db DBTX, settings Settings, id uuid.U
 	var orderNo, customerName, total string
 	var customerID uuid.UUID
 	err = db.QueryRowContext(ctx, `
-		SELECT so.order_no, so.customer_id, COALESCE(c.name,''), COALESCE(so.total_amount,0)::text
+		SELECT so.order_no, so.customer_id, COALESCE(c.name,''), CAST(COALESCE(so.total_amount,0) AS TEXT)
 		FROM sales_orders so
 		LEFT JOIN customers c ON c.id = so.customer_id
 		WHERE so.id=$1`, id).Scan(&orderNo, &customerID, &customerName, &total)
@@ -365,7 +365,7 @@ func postPurchaseReceive(ctx context.Context, db DBTX, settings Settings, id uui
 	var orderNo, supplierName, total string
 	var supplierID uuid.UUID
 	err = db.QueryRowContext(ctx, `
-		SELECT po.order_no, po.supplier_id, COALESCE(s.name,''), COALESCE(po.total_amount,0)::text
+		SELECT po.order_no, po.supplier_id, COALESCE(s.name,''), CAST(COALESCE(po.total_amount,0) AS TEXT)
 		FROM purchase_orders po
 		LEFT JOIN suppliers s ON s.id = po.supplier_id
 		WHERE po.id=$1`, id).Scan(&orderNo, &supplierID, &supplierName, &total)
@@ -458,7 +458,7 @@ func updateMovingAverage(ctx context.Context, db DBTX, purchaseID uuid.UUID) err
 		}
 		// 用净额(不含可抵扣进项)入成本；与 revertMovingAverage 对称。
 		newCost := oldQty.Mul(a.oldCost).Add(a.net).Div(newQty)
-		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=NOW() WHERE id=$1`, pid, money(newCost)); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1`, pid, money(newCost)); err != nil {
 			return err
 		}
 	}
@@ -515,7 +515,7 @@ func revertMovingAverage(ctx context.Context, db DBTX, purchaseID uuid.UUID) err
 		if oldCost.LessThan(decimal.Zero) {
 			oldCost = decimal.Zero
 		}
-		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=NOW() WHERE id=$1`, pid, money(oldCost)); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE products SET cost_price=$2, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1`, pid, money(oldCost)); err != nil {
 			return err
 		}
 	}

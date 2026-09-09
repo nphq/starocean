@@ -163,25 +163,6 @@ func (h *Handler) RegisterHTML(r *gin.Engine) {
 		web.GET("/ledger/books", h.LedgerBooks)
 		web.GET("/ledger/reports", h.LedgerReports)
 
-		web.GET("/personnel/employees", h.EmployeesPage)
-		web.GET("/personnel/employees/new", h.EmployeeNewPage)
-		web.POST("/personnel/employees", h.EmployeeCreate)
-		web.GET("/personnel/employees/:id", h.EmployeeDetail)
-		web.GET("/personnel/salary", h.SalaryPage)
-		web.GET("/personnel/contracts", h.ContractsPage)
-		web.GET("/personnel/departments", h.DepartmentsPage)
-
-		web.GET("/workreports", h.WorkReportsPage)
-		web.GET("/workreports/new", h.WorkReportNewPage)
-		web.POST("/workreports", h.WorkReportCreate)
-		web.GET("/workreports/:id", h.WorkReportDetail)
-
-		web.GET("/picking", h.PickingPage)
-		web.GET("/picking/:id", h.PickingDetail)
-		web.POST("/picking/:id/complete", h.PickingComplete)
-
-		web.GET("/attendance", h.AttendancePage)
-
 		web.GET("/search", h.SearchPage)
 	}
 }

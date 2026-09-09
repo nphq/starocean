@@ -20,9 +20,9 @@ const productCols = `id, code, name, COALESCE(category,'') as category, COALESCE
        COALESCE(safety_stock,0) as safety_stock, COALESCE(current_stock,0) as current_stock,
        COALESCE(pricing_type, 'standard') as pricing_type,
        COALESCE(shelf_life_days,0) as shelf_life_days,
-       COALESCE(created_at, '1970-01-01'::timestamptz) as created_at,
+       COALESCE(created_at, '1970-01-01') as created_at,
        COALESCE(company_id,'default') as company_id,
-       COALESCE(properties::text,'{}') as properties`
+       COALESCE(properties,'{}') as properties`
 
 func scanProductRow(row interface{ Scan(...any) error }) (models.Product, error) {
 	var p models.Product
@@ -43,7 +43,7 @@ func (h *Handler) ProductsPage(c *gin.Context) {
 	var total int64
 	if q != "" {
 		rows, err := h.db.QueryContext(ctx, `SELECT `+productCols+` FROM products
-			WHERE code ILIKE '%' || $1 || '%' OR name ILIKE '%' || $1 || '%' ORDER BY name LIMIT 100`, q)
+			WHERE code LIKE '%' || $1 || '%' OR name LIKE '%' || $1 || '%' ORDER BY name LIMIT 100`, q)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "加载失败")
 			return
@@ -103,7 +103,7 @@ func (h *Handler) ProductCreate(c *gin.Context) {
 	}
 	var id uuid.UUID
 	err := h.db.QueryRowContext(c.Request.Context(), `INSERT INTO products (id, code, name, category, unit, sale_price, cost_price, safety_stock, properties)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), $6::numeric, $7::numeric, $8, '{}'::jsonb) RETURNING id`,
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), CAST($6 AS NUMERIC), CAST($7 AS NUMERIC), $8, '{}') RETURNING id`,
 		uuid.New(), code, in.Name, in.Category, in.Unit, nonEmpty(in.SalePrice, "0"), nonEmpty(in.CostPrice, "0"), in.SafetyStock).Scan(&id)
 	if err != nil {
 		h.renderPage(c, "新增商品", pages.ProductForm(nil, "保存失败：编码可能重复"))
@@ -178,7 +178,7 @@ func (h *Handler) ProductUpdate(c *gin.Context) {
 		return
 	}
 	_, err = h.db.ExecContext(c.Request.Context(), `UPDATE products SET name=$2, category=NULLIF($3,''),
-		unit=NULLIF($4,''), sale_price=$5::numeric, cost_price=$6::numeric, safety_stock=$7, updated_at=NOW() WHERE id=$1`,
+		unit=NULLIF($4,''), sale_price=CAST($5 AS NUMERIC), cost_price=CAST($6 AS NUMERIC), safety_stock=$7, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1`,
 		id, in.Name, in.Category, in.Unit, nonEmpty(in.SalePrice, "0"), nonEmpty(in.CostPrice, "0"), in.SafetyStock)
 	if err != nil {
 		p, _ := scanProductRow(h.db.QueryRowContext(c.Request.Context(), `SELECT `+productCols+` FROM products WHERE id = $1`, id))

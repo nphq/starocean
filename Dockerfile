@@ -23,7 +23,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /app/starocean .
 
-# 单机 SQLite 默认数据目录（755 目录需可写，避免 root 属主导致建库失败）
+# 单机 Turso 文件库默认数据目录（755 目录需可写，避免 root 属主导致建库失败）
 RUN mkdir -p /data && chown 65532:65532 /data
 ENV DATABASE_URL="sqlite:/data/starocean.db"
 

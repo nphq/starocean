@@ -88,14 +88,6 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = component.Stat("在职员工", strconv.FormatInt(d.ActiveEmployees, 10)).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = component.Stat("合同将到期", strconv.FormatInt(d.ExpiringContracts, 10)).Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div><div class=\"card mb-8 p-6 md:p-8\"><div class=\"mb-5 flex items-end justify-between gap-3\"><div><h3 class=\"text-sm font-semibold text-warm-900 dark:text-warm-100\">近 12 个月销售与采购</h3><p class=\"mt-0.5 text-xs text-warm-400\">柱高按期间峰值归一，便于对照进销节奏</p></div><div class=\"flex gap-4 text-xs text-warm-500\"><span class=\"flex items-center gap-1.5\"><span class=\"inline-block h-2 w-2.5 rounded-sm bg-emerald-600\"></span>销售</span> <span class=\"flex items-center gap-1.5\"><span class=\"inline-block h-2 w-2.5 rounded-sm bg-brand-600\"></span>采购</span></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -116,7 +108,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var3 templ.SafeURL
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/sales/" + o.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 60, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 58, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -129,7 +121,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(o.OrderNo)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 60, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 58, Col: 131}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -142,7 +134,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(orDash(o.CustomerName))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 61, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 59, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -155,7 +147,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.DateOnly(o.OrderDate))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 62, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 60, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -168,7 +160,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.Money(o.TotalAmount))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 63, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 61, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -203,7 +195,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(vmodel.StatusLabel(o.Status))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 64, Col: 114}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 62, Col: 114}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -232,7 +224,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var11 templ.SafeURL
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/inventory/" + p.ID.String()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 79, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 77, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -245,7 +237,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 81, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 79, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -258,7 +250,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(p.CurrentStock)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 82, Col: 132}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 80, Col: 132}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -271,7 +263,7 @@ func Dashboard(d *models.DashboardData, points []vmodel.MonthPoint) templ.Compon
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(p.SafetyStock)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 82, Col: 188}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 80, Col: 188}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -337,7 +329,7 @@ func MonthBars(points []vmodel.MonthPoint) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Label + " 销售¥" + strconv.FormatFloat(p.Sales, 'f', 2, 64) + " 采购¥" + strconv.FormatFloat(p.Purchases, 'f', 2, 64))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 105, Col: 197}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 103, Col: 197}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 			if templ_7745c5c3_Err != nil {
@@ -350,7 +342,7 @@ func MonthBars(points []vmodel.MonthPoint) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("height:" + pct(p.Sales, chartPeak(points)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 107, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 105, Col: 116}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -363,7 +355,7 @@ func MonthBars(points []vmodel.MonthPoint) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("height:" + pct(p.Purchases, chartPeak(points)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 108, Col: 118}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 106, Col: 118}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -376,7 +368,7 @@ func MonthBars(points []vmodel.MonthPoint) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(shortMonth(p.Label))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 110, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `view/pages/dashboard.templ`, Line: 108, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {

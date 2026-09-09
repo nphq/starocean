@@ -91,7 +91,7 @@ func CreateSalesOrder(ctx context.Context, tx *sql.Tx, in SalesOrderInput) (orde
 
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO sales_orders (id, order_no, customer_id, status, order_date, delivery_date, notes, company_id, properties)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'default', $8::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'default', $8)
 		RETURNING total_amount`, orderID, orderNo, in.CustomerID, "draft", in.OrderDate, deliveryDate, notes, shared.JSONMapArg(in.Properties)).Scan(new(string))
 	if err != nil {
 		return
@@ -112,7 +112,7 @@ func CreateSalesOrder(ctx context.Context, tx *sql.Tx, in SalesOrderInput) (orde
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		UPDATE sales_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM sales_order_items WHERE order_id = $1), updated_at = NOW()
+		UPDATE sales_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM sales_order_items WHERE order_id = $1), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE id = $1`, orderID)
 	if err != nil {
 		return
@@ -128,7 +128,7 @@ func CreateSalesOrder(ctx context.Context, tx *sql.Tx, in SalesOrderInput) (orde
 func checkCustomerCredit(ctx context.Context, tx *sql.Tx, customerID, orderID uuid.UUID) error {
 	var cust models.Customer
 	// 锁住客户行：并发为同一客户创建订单时串行化，避免两个草稿同时通过信用检查
-	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(credit_limit, 0), COALESCE(balance, 0) FROM customers WHERE id = $1 FOR UPDATE`, customerID).
+	err := tx.QueryRowContext(ctx, `SELECT id, COALESCE(credit_limit, 0), COALESCE(balance, 0) FROM customers WHERE id = $1`, customerID).
 		Scan(&cust.ID, &cust.CreditLimit, &cust.Balance)
 	if err != nil {
 		return fmt.Errorf("customer not found: %w", err)
@@ -151,11 +151,11 @@ type querier interface {
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
-const salesOrderCols = `id, order_no, COALESCE(customer_id, gen_random_uuid()),
+const salesOrderCols = `id, order_no, COALESCE(customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 	COALESCE(status, 'draft'), COALESCE(total_amount, 0), COALESCE(paid_amount, 0),
 	COALESCE(order_date, '1970-01-01'), delivery_date,
 	COALESCE(notes, ''), COALESCE(created_at, '1970-01-01'),
-	COALESCE(company_id, 'default'), COALESCE(properties::text, '{}')`
+	COALESCE(company_id, 'default'), COALESCE(properties, '{}')`
 
 func scanSalesOrder(row *sql.Row) (models.SalesOrder, error) {
 	var o models.SalesOrder
@@ -176,16 +176,16 @@ func getSalesOrder(ctx context.Context, db querier, id uuid.UUID) (models.SalesO
 	return scanSalesOrder(db.QueryRowContext(ctx, `SELECT `+salesOrderCols+` FROM sales_orders WHERE id = $1`, id))
 }
 
-// getSalesOrderForUpdate 在事务内对订单行加排他锁，串行化并发状态流转，
-// 避免两个请求同时读到同一旧状态（如 draft）导致重复扣库存（TOCTOU）。
+// getSalesOrderForUpdate 在写事务内读取订单（外层 BeginTx = BEGIN IMMEDIATE
+// 已串行化写者），避免两个请求同时读到同一旧状态导致重复扣库存（TOCTOU）。
 func getSalesOrderForUpdate(ctx context.Context, tx *sql.Tx, id uuid.UUID) (models.SalesOrder, error) {
-	return scanSalesOrder(tx.QueryRowContext(ctx, `SELECT `+salesOrderCols+` FROM sales_orders WHERE id = $1 FOR UPDATE`, id))
+	return scanSalesOrder(tx.QueryRowContext(ctx, `SELECT `+salesOrderCols+` FROM sales_orders WHERE id = $1`, id))
 }
 
 func getSalesOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) ([]models.SalesOrderItem, error) {
 	rows, err := tx.QueryContext(ctx, `
-		SELECT soi.id, COALESCE(soi.order_id, gen_random_uuid()),
-		       COALESCE(soi.product_id, gen_random_uuid()),
+		SELECT soi.id, COALESCE(soi.order_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
+		       COALESCE(soi.product_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
 		       soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0), COALESCE(soi.tax_rate, 0)
 		FROM sales_order_items soi
@@ -208,16 +208,16 @@ func getSalesOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) ([]m
 	return items, rows.Err()
 }
 
-// getProductForUpdate 在事务内对商品行加排他锁，保证库存增减的读-算-写是原子的。
+// getProductForUpdate 在写事务内读取商品库存（BEGIN IMMEDIATE 串行化写者）。
 func getProductForUpdate(ctx context.Context, tx *sql.Tx, id uuid.UUID) (models.Product, error) {
-	return scanProduct(tx.QueryRowContext(ctx, `SELECT `+productCols+` FROM products WHERE id = $1 FOR UPDATE`, id))
+	return scanProduct(tx.QueryRowContext(ctx, `SELECT `+productCols+` FROM products WHERE id = $1`, id))
 }
 
 const productCols = `id, code, name, COALESCE(category, ''), COALESCE(unit, ''),
 	COALESCE(sale_price, 0), COALESCE(cost_price, 0),
 	COALESCE(safety_stock, 0), COALESCE(current_stock, 0),
 	COALESCE(created_at, '1970-01-01'),
-	COALESCE(company_id, 'default'), COALESCE(properties::text, '{}')`
+	COALESCE(company_id, 'default'), COALESCE(properties, '{}')`
 
 func scanProduct(row *sql.Row) (models.Product, error) {
 	var p models.Product
@@ -314,12 +314,12 @@ func insertMovement(ctx context.Context, tx *sql.Tx, productID uuid.UUID, typ st
 }
 
 func updateProductStock(ctx context.Context, tx *sql.Tx, productID uuid.UUID, afterStock int32) error {
-	_, err := tx.ExecContext(ctx, `UPDATE products SET current_stock = $2, updated_at = NOW() WHERE id = $1`, productID, afterStock)
+	_, err := tx.ExecContext(ctx, `UPDATE products SET current_stock = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, productID, afterStock)
 	return err
 }
 
 func ConfirmSalesOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
-	// 行锁 + 状态校验在同一事务内完成，并发重复确认会被串行化：后到者读到新状态并拒绝。
+	// 状态校验在写事务内完成：BEGIN IMMEDIATE 串行化后，后到者读到新状态并拒绝。
 	order, err := getSalesOrderForUpdate(ctx, tx, id)
 	if err != nil {
 		return err
@@ -335,11 +335,11 @@ func ConfirmSalesOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 		return err
 	}
 	// 欠款累计：确认即记应收，信用检查才有账可算（取消/回款时冲回）。
-	if _, err := tx.ExecContext(ctx, `UPDATE customers SET balance = balance + $2::numeric, updated_at = NOW() WHERE id = $1`,
+	if _, err := tx.ExecContext(ctx, `UPDATE customers SET balance = balance + CAST($2 AS NUMERIC), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`,
 		order.CustomerID, order.TotalAmount.StringFixed(2)); err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "confirmed")
+	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "confirmed")
 	return err
 }
 
@@ -351,7 +351,7 @@ func ShipSalesOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 	if !order.CanTransitionTo("shipped") {
 		return fmt.Errorf("cannot transition from %s to shipped", order.Status)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "shipped")
+	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "shipped")
 	return err
 }
 
@@ -363,7 +363,7 @@ func InvoiceSalesOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 	if !order.CanTransitionTo("invoiced") {
 		return fmt.Errorf("cannot transition from %s to invoiced", order.Status)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "invoiced")
+	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "invoiced")
 	return err
 }
 
@@ -384,12 +384,12 @@ func CancelSalesOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 			return err
 		}
 		// 欠款冲回：确认时记的应收，取消时原路扣减。
-		if _, err := tx.ExecContext(ctx, `UPDATE customers SET balance = balance - $2::numeric, updated_at = NOW() WHERE id = $1`,
+		if _, err := tx.ExecContext(ctx, `UPDATE customers SET balance = balance - CAST($2 AS NUMERIC), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`,
 			order.CustomerID, order.TotalAmount.StringFixed(2)); err != nil {
 			return err
 		}
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "cancelled")
+	_, err = tx.ExecContext(ctx, `UPDATE sales_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "cancelled")
 	return err
 }
 
@@ -408,11 +408,11 @@ func DeleteSalesOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 	return err
 }
 
-const purchaseOrderCols = `id, order_no, COALESCE(supplier_id, gen_random_uuid()),
+const purchaseOrderCols = `id, order_no, COALESCE(supplier_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 	COALESCE(status, 'draft'), COALESCE(total_amount, 0), COALESCE(paid_amount, 0),
 	COALESCE(order_date, '1970-01-01'), delivery_date,
 	COALESCE(notes, ''), COALESCE(created_at, '1970-01-01'),
-	COALESCE(company_id, 'default'), COALESCE(properties::text, '{}')`
+	COALESCE(company_id, 'default'), COALESCE(properties, '{}')`
 
 func scanPurchaseOrder(row *sql.Row) (models.PurchaseOrder, error) {
 	var o models.PurchaseOrder
@@ -435,13 +435,13 @@ func getPurchaseOrder(ctx context.Context, db querier, id uuid.UUID) (models.Pur
 
 // getPurchaseOrderForUpdate 与 getSalesOrderForUpdate 同理：锁行后再做状态流转。
 func getPurchaseOrderForUpdate(ctx context.Context, tx *sql.Tx, id uuid.UUID) (models.PurchaseOrder, error) {
-	return scanPurchaseOrder(tx.QueryRowContext(ctx, `SELECT `+purchaseOrderCols+` FROM purchase_orders WHERE id = $1 FOR UPDATE`, id))
+	return scanPurchaseOrder(tx.QueryRowContext(ctx, `SELECT `+purchaseOrderCols+` FROM purchase_orders WHERE id = $1`, id))
 }
 
 func getPurchaseOrderItems(ctx context.Context, tx *sql.Tx, orderID uuid.UUID) ([]models.PurchaseOrderItem, error) {
 	rows, err := tx.QueryContext(ctx, `
-		SELECT poi.id, COALESCE(poi.order_id, gen_random_uuid()),
-		       COALESCE(poi.product_id, gen_random_uuid()),
+		SELECT poi.id, COALESCE(poi.order_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
+		       COALESCE(poi.product_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 		       COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
 		       poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0), COALESCE(poi.tax_rate, 0)
 		FROM purchase_order_items poi
@@ -478,7 +478,7 @@ func CreatePurchaseOrder(ctx context.Context, tx *sql.Tx, in PurchaseOrderInput)
 
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO purchase_orders (id, order_no, supplier_id, status, order_date, delivery_date, notes, company_id, properties)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'default', $8::jsonb)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'default', $8)
 		RETURNING total_amount`, orderID, orderNo, in.SupplierID, "draft", in.OrderDate, deliveryDate, in.Notes, shared.JSONMapArg(in.Properties)).Scan(new(string))
 	if err != nil {
 		return
@@ -499,7 +499,7 @@ func CreatePurchaseOrder(ctx context.Context, tx *sql.Tx, in PurchaseOrderInput)
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		UPDATE purchase_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM purchase_order_items WHERE order_id = $1), updated_at = NOW()
+		UPDATE purchase_orders SET total_amount = (SELECT COALESCE(SUM(amount),0) FROM purchase_order_items WHERE order_id = $1), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE id = $1`, orderID)
 	return
 }
@@ -512,7 +512,7 @@ func ConfirmPurchaseOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 	if !order.CanTransitionTo("confirmed") {
 		return fmt.Errorf("cannot transition from %s to confirmed", order.Status)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "confirmed")
+	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "confirmed")
 	return err
 }
 
@@ -531,7 +531,7 @@ func ReceivePurchaseOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 	if err := applyStockIn(ctx, tx, "purchase_order", order.ID, purchaseItemDeltas(items)); err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "received")
+	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "received")
 	return err
 }
 
@@ -543,7 +543,7 @@ func PayPurchaseOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 	if !order.CanTransitionTo("paid") {
 		return fmt.Errorf("cannot transition from %s to paid", order.Status)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "paid")
+	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "paid")
 	return err
 }
 
@@ -564,7 +564,7 @@ func CancelPurchaseOrder(ctx context.Context, tx *sql.Tx, id uuid.UUID) error {
 			return err
 		}
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, "cancelled")
+	_, err = tx.ExecContext(ctx, `UPDATE purchase_orders SET status = $2, updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id = $1`, id, "cancelled")
 	return err
 }
 

@@ -199,7 +199,7 @@ func (h *Handler) ReimbursementSubmit(c *gin.Context) {
 		shared.JSONBadRequest(c, "无效ID")
 		return
 	}
-	if _, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='pending_approval', updated_at=NOW() WHERE id=$1 AND status='draft'", id); err != nil {
+	if _, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='pending_approval', updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1 AND status='draft'", id); err != nil {
 		shared.JSONInternal(c, err)
 		return
 	}
@@ -220,7 +220,7 @@ func (h *Handler) ReimbursementApprove(c *gin.Context) {
 	}
 	approver := in.ApproverName
 	now := time.Now()
-	res, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='approved', approver_name=$1, approved_at=$2, updated_at=NOW() WHERE id=$3 AND status='pending_approval'", approver, now, id)
+	res, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='approved', approver_name=$1, approved_at=$2, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$3 AND status='pending_approval'", approver, now, id)
 	if err != nil {
 		shared.JSONInternal(c, err)
 		return
@@ -242,7 +242,7 @@ func (h *Handler) ReimbursementReject(c *gin.Context) {
 	if !shared.BindJSON(c, &in) {
 		return
 	}
-	if _, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='rejected', rejected_reason=$1, updated_at=NOW() WHERE id=$2 AND status='pending_approval'", in.Reason, id); err != nil {
+	if _, err := h.db.ExecContext(ctx, "UPDATE reimbursements SET status='rejected', rejected_reason=$1, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$2 AND status='pending_approval'", in.Reason, id); err != nil {
 		shared.JSONInternal(c, err)
 		return
 	}
@@ -266,7 +266,7 @@ func (h *Handler) ReimbursementPay(c *gin.Context) {
 
 	var amount decimal.Decimal
 	var applicantName, status, category string
-	err = tx.QueryRowContext(ctx, "SELECT amount, applicant_name, status, COALESCE(category,'') FROM reimbursements WHERE id=$1 FOR UPDATE", id).Scan(&amount, &applicantName, &status, &category)
+	err = tx.QueryRowContext(ctx, "SELECT amount, applicant_name, status, COALESCE(category,'') FROM reimbursements WHERE id=$1", id).Scan(&amount, &applicantName, &status, &category)
 	if err != nil {
 		shared.JSONNotFound(c, "报销单不存在")
 		return
@@ -278,12 +278,12 @@ func (h *Handler) ReimbursementPay(c *gin.Context) {
 
 	paymentID := uuid.New()
 	_, err = tx.ExecContext(ctx, `INSERT INTO payments (id, type, amount, partner_name, notes, payment_date)
-		VALUES ($1, '支出', $2, $3, '报销付款', NOW())`, paymentID, amount.StringFixed(2), applicantName)
+		VALUES ($1, '支出', $2, $3, '报销付款', (strftime('%Y-%m-%dT%H:%M:%SZ','now')))`, paymentID, amount.StringFixed(2), applicantName)
 	if err != nil {
 		shared.JSONInternal(c, err)
 		return
 	}
-	res, err := tx.ExecContext(ctx, "UPDATE reimbursements SET status='paid', payment_id=$1, updated_at=NOW() WHERE id=$2 AND status='approved'", paymentID, id)
+	res, err := tx.ExecContext(ctx, "UPDATE reimbursements SET status='paid', payment_id=$1, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$2 AND status='approved'", paymentID, id)
 	if err != nil {
 		shared.JSONInternal(c, err)
 		return
@@ -542,7 +542,7 @@ func (h *Handler) ReimbursementUpdate(c *gin.Context) {
 
 	expenseDate := parseOptionalDate(in.ExpenseDate)
 
-	_, err = h.db.ExecContext(ctx, `UPDATE reimbursements SET applicant_name=$1, department=$2, amount=$3, category=$4, description=$5, expense_date=$6, updated_at=NOW() WHERE id=$7`,
+	_, err = h.db.ExecContext(ctx, `UPDATE reimbursements SET applicant_name=$1, department=$2, amount=$3, category=$4, description=$5, expense_date=$6, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$7`,
 		in.ApplicantName, in.Department, in.Amount, in.Category, in.Description, expenseDate, id)
 	if err != nil {
 		shared.JSONInternal(c, err)
@@ -570,8 +570,7 @@ func (h *Handler) ReimbursementUpdate(c *gin.Context) {
 }
 
 func generateSeq(ctx context.Context, db *sql.DB, seqName, prefix string) (string, error) {
-	// 用 order_sequences 表实现自增序列（与订单号生成同一模式），
-	// 同时兼容 PostgreSQL 与 SQLite（不使用 PG 的 nextval）
+	// 用 order_sequences 表实现自增序列（与订单号生成同一模式）。
 	var seq int64
 	err := db.QueryRowContext(ctx, `
 		INSERT INTO order_sequences (seq_key, last_seq) VALUES ($1, 1)
@@ -748,7 +747,7 @@ func (h *Handler) CustomersSearchAPI(c *gin.Context) {
 	ctx := c.Request.Context()
 	q := c.Query("q")
 
-	rows, err := h.db.QueryContext(ctx, "SELECT id, code, name FROM customers WHERE name ILIKE $1 ORDER BY name LIMIT 20", "%"+q+"%")
+	rows, err := h.db.QueryContext(ctx, "SELECT id, code, name FROM customers WHERE name LIKE $1 ORDER BY name LIMIT 20", "%"+q+"%")
 	if err != nil {
 		shared.JSONOK(c, []interface{}{})
 		return
@@ -770,7 +769,7 @@ func (h *Handler) SuppliersSearchAPI(c *gin.Context) {
 	ctx := c.Request.Context()
 	q := c.Query("q")
 
-	rows, err := h.db.QueryContext(ctx, "SELECT id, code, name FROM suppliers WHERE name ILIKE $1 ORDER BY name LIMIT 20", "%"+q+"%")
+	rows, err := h.db.QueryContext(ctx, "SELECT id, code, name FROM suppliers WHERE name LIKE $1 ORDER BY name LIMIT 20", "%"+q+"%")
 	if err != nil {
 		shared.JSONOK(c, []interface{}{})
 		return

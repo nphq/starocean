@@ -1,5 +1,0 @@
-ALTER TABLE suppliers DROP COLUMN IF EXISTS quality_rate;
-ALTER TABLE suppliers DROP COLUMN IF EXISTS on_time_rate;
-ALTER TABLE suppliers DROP COLUMN IF EXISTS rating;
-ALTER TABLE customers DROP COLUMN IF EXISTS sales_person;
-ALTER TABLE customers DROP COLUMN IF EXISTS tier;

@@ -203,70 +203,6 @@ type DashboardData struct {
 	RecentOrders          []SalesOrder `json:"recent_orders"`
 	LowStockItems         []Product    `json:"low_stock_items"`
 	PendingReimbursements int64        `json:"pending_reimbursements"`
-	ActiveEmployees       int64        `json:"active_employees"`
-	WeeklyReports         int64        `json:"weekly_reports"`
-	ExpiringContracts     int64        `json:"expiring_contracts"`
-}
-
-type PartnerNote struct {
-	ID           uuid.UUID  `json:"id"`
-	PartnerType  string     `json:"partner_type"`
-	PartnerID    uuid.UUID  `json:"partner_id"`
-	PartnerName  string     `json:"partner_name"`
-	NoteType     string     `json:"note_type"`
-	Content      string     `json:"content"`
-	NextFollowUp *time.Time `json:"next_follow_up"`
-	CreatedAt    time.Time  `json:"created_at"`
-	CompanyID    string     `json:"company_id"`
-}
-
-type AttendanceRecord struct {
-	ID           uuid.UUID `json:"id"`
-	EmployeeCode string    `json:"employee_code"`
-	EmployeeName string    `json:"employee_name"`
-	Department   string    `json:"department"`
-	CheckInTime  time.Time `json:"check_in_time"`
-	CheckType    string    `json:"check_type"`
-	Source       string    `json:"source"`
-	Location     string    `json:"location"`
-	Remark       string    `json:"remark"`
-	CheckDate    time.Time `json:"check_date"`
-	CreatedAt    time.Time `json:"created_at"`
-	CompanyID    string    `json:"company_id"`
-}
-
-type WorkReport struct {
-	ID           uuid.UUID `json:"id"`
-	Type         string    `json:"type"`
-	ReportDate   time.Time `json:"report_date"`
-	EmployeeCode string    `json:"employee_code"`
-	EmployeeName string    `json:"employee_name"`
-	Department   string    `json:"department"`
-	WorkDone     string    `json:"work_done"`
-	TomorrowPlan string    `json:"tomorrow_plan"`
-	Issues       string    `json:"issues"`
-	Status       string    `json:"status"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	CompanyID    string    `json:"company_id"`
-}
-
-type WeeklyReportLink struct {
-	ID             uuid.UUID `json:"id"`
-	WeeklyReportID uuid.UUID `json:"weekly_report_id"`
-	DailyReportID  uuid.UUID `json:"daily_report_id"`
-}
-
-type ReportTemplate struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	WorkDone     string    `json:"work_done"`
-	TomorrowPlan string    `json:"tomorrow_plan"`
-	Issues       string    `json:"issues"`
-	IsDefault    bool      `json:"is_default"`
-	CreatedAt    time.Time `json:"created_at"`
-	CompanyID    string    `json:"company_id"`
 }
 
 type Reimbursement struct {
@@ -341,83 +277,6 @@ type ReconciliationItem struct {
 	ReferenceDate    *time.Time      `json:"reference_date"`
 }
 
-type Department struct {
-	ID          uuid.UUID  `json:"id"`
-	Name        string     `json:"name"`
-	Code        string     `json:"code"`
-	ParentID    *uuid.UUID `json:"parent_id"`
-	ManagerName string     `json:"manager_name"`
-	SortOrder   int32      `json:"sort_order"`
-	CreatedAt   time.Time  `json:"created_at"`
-	CompanyID   string     `json:"company_id"`
-}
-
-type Position struct {
-	ID           uuid.UUID       `json:"id"`
-	Name         string          `json:"name"`
-	DepartmentID *uuid.UUID      `json:"department_id"`
-	BaseSalary   decimal.Decimal `json:"base_salary"`
-	CreatedAt    time.Time       `json:"created_at"`
-	CompanyID    string          `json:"company_id"`
-}
-
-type Employee struct {
-	ID               uuid.UUID  `json:"id"`
-	Code             string     `json:"code"`
-	Name             string     `json:"name"`
-	DepartmentID     *uuid.UUID `json:"department_id"`
-	PositionID       *uuid.UUID `json:"position_id"`
-	Phone            string     `json:"phone"`
-	Email            string     `json:"email"`
-	IDNumber         string     `json:"id_number"`
-	HireDate         *time.Time `json:"hire_date"`
-	SeparationDate   *time.Time `json:"separation_date"`
-	Status           string     `json:"status"`
-	EmergencyContact string     `json:"emergency_contact"`
-	EmergencyPhone   string     `json:"emergency_phone"`
-	BankName         string     `json:"bank_name"`
-	BankAccount      string     `json:"bank_account"`
-	Properties       string     `json:"properties"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	CompanyID        string     `json:"company_id"`
-	DepartmentName   string     `json:"department_name,omitempty"`
-	PositionName     string     `json:"position_name,omitempty"`
-}
-
-type Contract struct {
-	ID           uuid.UUID       `json:"id"`
-	EmployeeID   uuid.UUID       `json:"employee_id"`
-	EmployeeName string          `json:"employee_name"`
-	ContractNo   string          `json:"contract_no"`
-	ContractType string          `json:"contract_type"`
-	StartDate    *time.Time      `json:"start_date"`
-	EndDate      *time.Time      `json:"end_date"`
-	Salary       decimal.Decimal `json:"salary"`
-	Status       string          `json:"status"`
-	CreatedAt    time.Time       `json:"created_at"`
-	CompanyID    string          `json:"company_id"`
-}
-
-type SalaryComponent struct {
-	ID             uuid.UUID       `json:"id"`
-	EmployeeID     uuid.UUID       `json:"employee_id"`
-	EmployeeName   string          `json:"employee_name"`
-	Month          time.Time       `json:"month"`
-	BaseSalary     decimal.Decimal `json:"base_salary"`
-	OvertimePay    decimal.Decimal `json:"overtime_pay"`
-	Bonus          decimal.Decimal `json:"bonus"`
-	Deduction      decimal.Decimal `json:"deduction"`
-	SocialSecurity decimal.Decimal `json:"social_security"`
-	HousingFund    decimal.Decimal `json:"housing_fund"`
-	Tax            decimal.Decimal `json:"tax"`
-	NetSalary      decimal.Decimal `json:"net_salary"`
-	Status         string          `json:"status"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	CompanyID      string          `json:"company_id"`
-}
-
 type PriceTier struct {
 	ID          uuid.UUID       `json:"id"`
 	ProductID   uuid.UUID       `json:"product_id"`
@@ -437,32 +296,4 @@ type CustomerProductPrice struct {
 	EffectiveTo   *time.Time      `json:"effective_to"`
 	CreatedAt     time.Time       `json:"created_at"`
 	CompanyID     string          `json:"company_id"`
-}
-
-type PickingOrder struct {
-	ID         uuid.UUID `json:"id"`
-	PickingNo  string    `json:"picking_no"`
-	Type       string    `json:"type"`
-	Status     string    `json:"status"`
-	OrderDate  time.Time `json:"order_date"`
-	AssignedTo string    `json:"assigned_to"`
-	Notes      string    `json:"notes"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	CompanyID  string    `json:"company_id"`
-}
-
-type PickingItem struct {
-	ID                 uuid.UUID       `json:"id"`
-	PickingID          uuid.UUID       `json:"picking_id"`
-	ProductID          uuid.UUID       `json:"product_id"`
-	ProductName        string          `json:"product_name"`
-	ProductCode        string          `json:"product_code"`
-	RequiredQuantity   decimal.Decimal `json:"required_quantity"`
-	PickedQuantity     decimal.Decimal `json:"picked_quantity"`
-	SourceOrderID      uuid.UUID       `json:"source_order_id"`
-	SourceCustomerID   uuid.UUID       `json:"source_customer_id"`
-	SourceCustomerName string          `json:"source_customer_name"`
-	Status             string          `json:"status"`
-	CreatedAt          time.Time       `json:"created_at"`
 }

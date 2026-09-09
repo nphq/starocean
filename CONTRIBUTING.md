@@ -1,17 +1,17 @@
 # Contributing to StarOcean
 
 Thanks for your interest! StarOcean is a lightweight, single-binary ERP for SMEs
-(Go + templ + htmx, SQLite by default). We keep the process boring on purpose.
+(Go + templ + htmx, Turso/SQLite by default). We keep the process boring on purpose.
 
 ## Development setup (zero dependencies)
 
 ```bash
 go version          # Go 1.26+
-make dev            # templ + Tailwind + run on :8080 (SQLite, seeded)
+make dev            # templ + Tailwind + run on :8080 (Turso file DB, seeded)
 # login: admin / 3dQAKbZHqP6P (demo only, see SECURITY.md)
 ```
 
-Useful targets: `make build`, `make test` (full suite, temp SQLite),
+Useful targets: `make build`, `make test` (full suite, temp Turso file DB),
 `make lint` (golangci-lint, must be clean), `make hooks` (lefthook install).
 
 ## Ground rules
@@ -21,12 +21,17 @@ Useful targets: `make build`, `make test` (full suite, temp SQLite),
    `docs/PLUGINS.md` (events + `properties`), not into core code.
 2. **Server-rendered first.** New pages are templ + htmx (forms POST+303,
    lists swap `#list`). No frontend framework, no new JS build steps.
-3. **SQLite-first.** New SQL must run on both backends (see the dialect
-   translation in `internal/db/sqlite*.go` + golden tests). PostgreSQL-only
-   syntax needs a translation rule, not an exception.
+3. **Turso-native SQL.** Application SQL must be valid Turso/SQLite
+   (`strftime`, `date('now',…)`, `LIKE`, `json_patch`, `CAST(… AS …)`,
+   `julianday`, `$N` placeholders). Do **not** write PostgreSQL dialect
+   (`NOW()`, `ILIKE`, `::type`, `DATE_TRUNC`, `INTERVAL`, `FOR UPDATE`,
+   `gen_random_uuid`, `CURRENT_DATE - date`). Migration `*.up.sql` files
+   remain historical PG-shaped DDL and are translated only at migrate time
+   (`internal/db/turso_migrate.go` + golden tests).
 4. **Money and stock are sacred.** Amount parsing must reject (never silently
-   zero); stock changes only inside transactions with row locks. Add/update
-   tests in `main_test.go` for any order/stock/ledger change.
+   zero); stock/payment read-modify-write only inside transactions
+   (`BeginTx` → `BEGIN IMMEDIATE`). Add/update tests in `main_test.go` for
+   any order/stock/ledger change.
 
 ## Pull requests
 
@@ -38,6 +43,6 @@ Useful targets: `make build`, `make test` (full suite, temp SQLite),
 
 ## Reporting bugs
 
-Use the bug report template. Include: version/commit, `DATABASE_URL` backend
-(SQLite/PG), steps to reproduce, expected vs actual, and relevant logs.
+Use the bug report template. Include: version/commit, `DATABASE_URL`
+(`sqlite:` / `turso:`), steps to reproduce, expected vs actual, and relevant logs.
 Security issues: **do not** open a public issue — see `SECURITY.md`.

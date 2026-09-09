@@ -2,7 +2,7 @@ package db
 
 import "embed"
 
-// EmbeddedMigrations 内嵌迁移目录，供测试/工具直接使用（与 main.go 的 embed 同源）。
+// schemaFS 内嵌基线 schema（与 main.go 同源，经 MigrateTurso 执行）。
 //
-//go:embed migrations
-var EmbeddedMigrations embed.FS
+//go:embed schema.sql
+var schemaFS embed.FS

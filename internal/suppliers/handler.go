@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/nphq/starocean/internal/models"
-	"github.com/nphq/starocean/internal/partnernotes"
 	"github.com/nphq/starocean/internal/shared"
 )
 
@@ -23,27 +22,27 @@ const supplierCols = `id, code, name, COALESCE(contact_person,'') as contact_per
        COALESCE(email,'') as email, COALESCE(address,'') as address,
        COALESCE(balance, 0) as balance,
        COALESCE(rating, 0) as rating, COALESCE(on_time_rate, 0) as on_time_rate, COALESCE(quality_rate, 0) as quality_rate,
-       COALESCE(created_at, '1970-01-01'::timestamptz) as created_at,
+       COALESCE(created_at, '1970-01-01') as created_at,
        COALESCE(company_id,'default') as company_id,
-       COALESCE(properties::text,'{}') as properties`
+       COALESCE(properties,'{}') as properties`
 
 const listSuppliersSQL = `SELECT ` + supplierCols + ` FROM suppliers ORDER BY created_at DESC NULLS LAST LIMIT $1 OFFSET $2`
 
 const getSupplierSQL = `SELECT ` + supplierCols + ` FROM suppliers WHERE id = $1`
 
 const searchSuppliersSQL = `SELECT ` + supplierCols + ` FROM suppliers
-WHERE name ILIKE '%' || $1 || '%' OR code ILIKE '%' || $1 || '%'
+WHERE name LIKE '%' || $1 || '%' OR code LIKE '%' || $1 || '%'
 ORDER BY name LIMIT 20`
 
 const createSupplierSQL = `INSERT INTO suppliers (id, code, name, contact_person, phone, email, address, properties)
-VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8::jsonb)
+VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), $8)
 RETURNING ` + supplierCols
 
 const updateSupplierSQL = `UPDATE suppliers SET name = $2, contact_person = NULLIF($3,''), phone = NULLIF($4,''),
        email = NULLIF($5,''), address = NULLIF($6,''),
-       rating = COALESCE(NULLIF($7,'')::numeric, rating), on_time_rate = COALESCE(NULLIF($8,'')::numeric, on_time_rate),
-       quality_rate = COALESCE(NULLIF($9,'')::numeric, quality_rate),
-       properties = properties || $10::jsonb, updated_at = NOW()
+       rating = COALESCE(CAST(NULLIF($7,'') AS NUMERIC), rating), on_time_rate = COALESCE(CAST(NULLIF($8,'') AS NUMERIC), on_time_rate),
+       quality_rate = COALESCE(CAST(NULLIF($9,'') AS NUMERIC), quality_rate),
+       properties = json_patch(properties, $10), updated_at = (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 WHERE id = $1
 RETURNING ` + supplierCols
 
@@ -58,11 +57,6 @@ type supplierInput struct {
 	OnTimeRate    string                 `json:"on_time_rate"`
 	QualityRate   string                 `json:"quality_rate"`
 	Properties    map[string]interface{} `json:"properties"`
-}
-
-type supplierDetail struct {
-	models.Supplier
-	Notes []models.PartnerNote `json:"notes"`
 }
 
 func scanSupplier(row interface{ Scan(...interface{}) error }) (models.Supplier, error) {
@@ -150,8 +144,7 @@ func (h *Handler) SupplierDetailPage(c *gin.Context) {
 		return
 	}
 
-	notes, _ := partnernotes.GetNotesByPartner(ctx, h.db, "supplier", id)
-	shared.JSONOK(c, supplierDetail{Supplier: supplier, Notes: shared.EmptySlice(notes)})
+	shared.JSONOK(c, supplier)
 }
 
 func (h *Handler) SupplierUpdate(c *gin.Context) {

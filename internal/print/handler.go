@@ -48,7 +48,7 @@ func (h *Handler) SalesOrderPrint(c *gin.Context) {
 			COALESCE(email,''), COALESCE(address,''),
 			COALESCE(credit_limit,0), COALESCE(balance,0),
 			COALESCE(created_at,'1970-01-01'),
-			COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
+			COALESCE(company_id,'default'), COALESCE(properties,'{}')
 		FROM customers WHERE id = $1`, order.CustomerID).Scan(
 		&customer.ID, &customer.Code, &customer.Name,
 		&customer.ContactPerson, &customer.Phone,
@@ -89,7 +89,7 @@ func (h *Handler) PurchaseOrderPrint(c *gin.Context) {
 			COALESCE(contact_person,''), COALESCE(phone,''),
 			COALESCE(email,''), COALESCE(address,''),
 			COALESCE(balance,0), COALESCE(created_at,'1970-01-01'),
-			COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
+			COALESCE(company_id,'default'), COALESCE(properties,'{}')
 		FROM suppliers WHERE id = $1`, order.SupplierID).Scan(
 		&supplier.ID, &supplier.Code, &supplier.Name,
 		&supplier.ContactPerson, &supplier.Phone,
@@ -184,7 +184,7 @@ func (h *Handler) CustomerStatement(c *gin.Context) {
 		COALESCE(email,''), COALESCE(address,''),
 		COALESCE(credit_limit,0), COALESCE(balance,0),
 		COALESCE(created_at,'1970-01-01'),
-		COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
+		COALESCE(company_id,'default'), COALESCE(properties,'{}')
 		FROM customers WHERE id = $1`, id).Scan(
 		&customer.ID, &customer.Code, &customer.Name,
 		&customer.ContactPerson, &customer.Phone,
@@ -196,11 +196,11 @@ func (h *Handler) CustomerStatement(c *gin.Context) {
 	}
 
 	orderRows, err := h.db.QueryContext(ctx, `
-		SELECT id, order_no, COALESCE(customer_id, gen_random_uuid()),
+		SELECT id, order_no, COALESCE(customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 			COALESCE(status, 'draft'), COALESCE(total_amount, 0), COALESCE(paid_amount, 0),
 			COALESCE(order_date, '1970-01-01'), COALESCE(delivery_date, '1970-01-01'),
 			COALESCE(notes, ''), COALESCE(created_at, '1970-01-01'),
-			COALESCE(company_id, 'default'), COALESCE(properties::text, '{}')
+			COALESCE(company_id, 'default'), COALESCE(properties, '{}')
 		FROM sales_orders WHERE customer_id = $1 AND status NOT IN ('cancelled','draft')
 		ORDER BY order_date`, id)
 	if err != nil {
@@ -229,12 +229,12 @@ func getSalesOrder(ctx context.Context, db *sql.DB, id uuid.UUID) (models.SalesO
 	var o models.SalesOrder
 	var deliveryDate sql.NullTime
 	err := db.QueryRowContext(ctx, `
-		SELECT so.id, so.order_no, COALESCE(so.customer_id, gen_random_uuid()),
+		SELECT so.id, so.order_no, COALESCE(so.customer_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 			COALESCE(c.name, '') as customer_name,
 			COALESCE(so.status, 'draft'), COALESCE(so.total_amount, 0), COALESCE(so.paid_amount, 0),
 			COALESCE(so.order_date, '1970-01-01'), so.delivery_date,
 			COALESCE(so.notes, ''), COALESCE(so.created_at, '1970-01-01'),
-			COALESCE(so.company_id, 'default'), COALESCE(so.properties::text, '{}')
+			COALESCE(so.company_id, 'default'), COALESCE(so.properties, '{}')
 		FROM sales_orders so LEFT JOIN customers c ON so.customer_id = c.id
 		WHERE so.id = $1`, id).Scan(
 		&o.ID, &o.OrderNo, &o.CustomerID, &o.CustomerName,
@@ -251,8 +251,8 @@ func getSalesOrder(ctx context.Context, db *sql.DB, id uuid.UUID) (models.SalesO
 
 func getSalesOrderItems(ctx context.Context, db *sql.DB, orderID uuid.UUID) ([]models.SalesOrderItem, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT soi.id, COALESCE(soi.order_id, gen_random_uuid()),
-			COALESCE(soi.product_id, gen_random_uuid()),
+		SELECT soi.id, COALESCE(soi.order_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
+			COALESCE(soi.product_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 			COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
 			soi.quantity, COALESCE(soi.unit_price, 0), COALESCE(soi.amount, 0)
 		FROM sales_order_items soi
@@ -279,12 +279,12 @@ func getPurchaseOrder(ctx context.Context, db *sql.DB, id uuid.UUID) (models.Pur
 	var o models.PurchaseOrder
 	var deliveryDate sql.NullTime
 	err := db.QueryRowContext(ctx, `
-		SELECT po.id, po.order_no, COALESCE(po.supplier_id, gen_random_uuid()),
+		SELECT po.id, po.order_no, COALESCE(po.supplier_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 			COALESCE(s.name, '') as supplier_name,
 			COALESCE(po.status, 'draft'), COALESCE(po.total_amount, 0), COALESCE(po.paid_amount, 0),
 			COALESCE(po.order_date, '1970-01-01'), po.delivery_date,
 			COALESCE(po.notes, ''), COALESCE(po.created_at, '1970-01-01'),
-			COALESCE(po.company_id, 'default'), COALESCE(po.properties::text, '{}')
+			COALESCE(po.company_id, 'default'), COALESCE(po.properties, '{}')
 		FROM purchase_orders po LEFT JOIN suppliers s ON po.supplier_id = s.id
 		WHERE po.id = $1`, id).Scan(
 		&o.ID, &o.OrderNo, &o.SupplierID, &o.SupplierName,
@@ -301,8 +301,8 @@ func getPurchaseOrder(ctx context.Context, db *sql.DB, id uuid.UUID) (models.Pur
 
 func getPurchaseOrderItems(ctx context.Context, db *sql.DB, orderID uuid.UUID) ([]models.PurchaseOrderItem, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT poi.id, COALESCE(poi.order_id, gen_random_uuid()),
-			COALESCE(poi.product_id, gen_random_uuid()),
+		SELECT poi.id, COALESCE(poi.order_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
+			COALESCE(poi.product_id, (lower(hex(randomblob(4)))||'-'||lower(hex(randomblob(2)))||'-4'||substr(lower(hex(randomblob(2))),2)||'-'||substr(lower(hex(randomblob(2))),1,4)||'-'||lower(hex(randomblob(6))))),
 			COALESCE(p.name, '') as product_name, COALESCE(p.code, '') as product_code,
 			poi.quantity, COALESCE(poi.unit_price, 0), COALESCE(poi.amount, 0)
 		FROM purchase_order_items poi

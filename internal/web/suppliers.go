@@ -15,9 +15,9 @@ const supplierCols = `id, code, name, COALESCE(contact_person,'') as contact_per
        COALESCE(email,'') as email, COALESCE(address,'') as address,
        COALESCE(balance, 0) as balance,
        COALESCE(rating, 0) as rating, COALESCE(on_time_rate, 0) as on_time_rate, COALESCE(quality_rate, 0) as quality_rate,
-       COALESCE(created_at, '1970-01-01'::timestamptz) as created_at,
+       COALESCE(created_at, '1970-01-01') as created_at,
        COALESCE(company_id,'default') as company_id,
-       COALESCE(properties::text,'{}') as properties`
+       COALESCE(properties,'{}') as properties`
 
 func scanSupplierRow(row interface{ Scan(...any) error }) (models.Supplier, error) {
 	var s models.Supplier
@@ -36,7 +36,7 @@ func (h *Handler) SuppliersPage(c *gin.Context) {
 	var total int64
 	if q != "" {
 		rows, err := h.db.QueryContext(ctx, `SELECT `+supplierCols+` FROM suppliers
-			WHERE name ILIKE '%' || $1 || '%' OR code ILIKE '%' || $1 || '%' ORDER BY name LIMIT 100`, q)
+			WHERE name LIKE '%' || $1 || '%' OR code LIKE '%' || $1 || '%' ORDER BY name LIMIT 100`, q)
 		if err != nil {
 			c.String(http.StatusInternalServerError, "加载失败")
 			return
@@ -88,7 +88,7 @@ func (h *Handler) SupplierCreate(c *gin.Context) {
 	}
 	var id uuid.UUID
 	err := h.db.QueryRowContext(ctx, `INSERT INTO suppliers (id, code, name, contact_person, phone, email, address, properties)
-		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), '{}'::jsonb) RETURNING id`,
+		VALUES ($1, $2, $3, NULLIF($4,''), NULLIF($5,''), NULLIF($6,''), NULLIF($7,''), '{}') RETURNING id`,
 		uuid.New(), code, name, strings.TrimSpace(c.PostForm("contact_person")), strings.TrimSpace(c.PostForm("phone")),
 		strings.TrimSpace(c.PostForm("email")), strings.TrimSpace(c.PostForm("address"))).Scan(&id)
 	if err != nil {
@@ -112,7 +112,7 @@ func (h *Handler) SupplierDetail(c *gin.Context) {
 	var orders []models.PurchaseOrder
 	rows, _ := h.db.QueryContext(c.Request.Context(), `SELECT id, order_no, COALESCE(supplier_id, '00000000-0000-0000-0000-000000000000'), '',
 		status, COALESCE(total_amount,0), COALESCE(paid_amount,0), COALESCE(order_date,'1970-01-01'), COALESCE(delivery_date,'1970-01-01'),
-		COALESCE(notes,''), COALESCE(created_at,'1970-01-01'), COALESCE(company_id,'default'), COALESCE(properties::text,'{}')
+		COALESCE(notes,''), COALESCE(created_at,'1970-01-01'), COALESCE(company_id,'default'), COALESCE(properties,'{}')
 		FROM purchase_orders WHERE supplier_id = $1 ORDER BY created_at DESC LIMIT 20`, id)
 	if rows != nil {
 		defer rows.Close()
@@ -154,7 +154,7 @@ func (h *Handler) SupplierUpdate(c *gin.Context) {
 		return
 	}
 	_, err = h.db.ExecContext(c.Request.Context(), `UPDATE suppliers SET name=$2, contact_person=NULLIF($3,''),
-		phone=NULLIF($4,''), email=NULLIF($5,''), address=NULLIF($6,''), updated_at=NOW() WHERE id=$1`,
+		phone=NULLIF($4,''), email=NULLIF($5,''), address=NULLIF($6,''), updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1`,
 		id, name, strings.TrimSpace(c.PostForm("contact_person")), strings.TrimSpace(c.PostForm("phone")),
 		strings.TrimSpace(c.PostForm("email")), strings.TrimSpace(c.PostForm("address")))
 	if err != nil {

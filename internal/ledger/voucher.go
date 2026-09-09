@@ -28,7 +28,7 @@ func GetVoucher(ctx context.Context, db DBTX, id uuid.UUID) (Voucher, error) {
 }
 
 const voucherSelect = `
-	SELECT v.id, v.voucher_no, v.word, v.voucher_date::text, v.period_year, v.period_month,
+	SELECT v.id, v.voucher_no, v.word, v.voucher_date, v.period_year, v.period_month,
 	       v.attachment_count, v.summary, v.status, v.source_type, v.source_id, v.prepared_by,
 	       v.posted_at, v.posted_by, v.reverses_id, v.reversed_by_id, v.debit_total, v.credit_total,
 	       v.created_at, v.reviewed_by, v.reviewed_at, v.review_note
@@ -123,7 +123,7 @@ func ListVouchers(ctx context.Context, db DBTX, year, month int, status, q strin
 		n++
 	}
 	if q != "" {
-		where = append(where, fmt.Sprintf("(v.voucher_no ILIKE $%d OR v.summary ILIKE $%d)", n, n))
+		where = append(where, fmt.Sprintf("(v.voucher_no LIKE $%d OR v.summary LIKE $%d)", n, n))
 		args = append(args, "%"+q+"%")
 		n++
 	}
@@ -250,7 +250,7 @@ func postVoucher(ctx context.Context, db DBTX, id uuid.UUID, postedBy string, al
 		}
 	}
 	res, err := db.ExecContext(ctx, `
-		UPDATE gl_vouchers SET status='posted', posted_at=NOW(), posted_by=$2, updated_at=NOW()
+		UPDATE gl_vouchers SET status='posted', posted_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')), posted_by=$2, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE id=$1 AND status IN ('draft','reviewed')`, id, postedBy)
 	if err != nil {
 		return err
@@ -278,7 +278,7 @@ func ReviewVoucher(ctx context.Context, db DBTX, id uuid.UUID, reviewedBy, note 
 		return fmt.Errorf("借贷不平衡，不能审核")
 	}
 	_, err = db.ExecContext(ctx, `
-		UPDATE gl_vouchers SET status='reviewed', reviewed_by=$2, reviewed_at=NOW(), review_note=$3, updated_at=NOW()
+		UPDATE gl_vouchers SET status='reviewed', reviewed_by=$2, reviewed_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')), review_note=$3, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE id=$1 AND status='draft'`, id, reviewedBy, note)
 	if err != nil {
 		return err
@@ -299,7 +299,7 @@ func RejectVoucher(ctx context.Context, db DBTX, id uuid.UUID, reason string) er
 		return fmt.Errorf("只有已审核凭证可以驳回")
 	}
 	_, err = db.ExecContext(ctx, `
-		UPDATE gl_vouchers SET status='draft', reviewed_by='', reviewed_at=NULL, review_note=$2, updated_at=NOW()
+		UPDATE gl_vouchers SET status='draft', reviewed_by='', reviewed_at=NULL, review_note=$2, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 		WHERE id=$1 AND status='reviewed'`, id, reason)
 	if err != nil {
 		return err
@@ -363,7 +363,7 @@ func reverseVoucher(ctx context.Context, db DBTX, id uuid.UUID, preparedBy strin
 	revID := uuid.New()
 	// 先守卫占位再生成红冲凭证：并发/双击下仅一次成功（PG 无 IMMEDIATE 串行化，
 	// 靠 reversed_by_id IS NULL + 影响行数判定，失败方整个事务回滚）。
-	res, err := db.ExecContext(ctx, `UPDATE gl_vouchers SET reversed_by_id=$2, updated_at=NOW() WHERE id=$1 AND reversed_by_id IS NULL`, orig.ID, revID)
+	res, err := db.ExecContext(ctx, `UPDATE gl_vouchers SET reversed_by_id=$2, updated_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE id=$1 AND reversed_by_id IS NULL`, orig.ID, revID)
 	if err != nil {
 		return Voucher{}, err
 	}

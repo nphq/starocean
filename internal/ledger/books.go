@@ -212,7 +212,7 @@ func AccountBook(ctx context.Context, db DBTX, code string, year, month int) (Ac
 	out.Opening = running.StringFixed(2)
 
 	q := `
-		SELECT v.voucher_date::text, v.id, v.voucher_no, COALESCE(NULLIF(l.summary,''), v.summary),
+		SELECT v.voucher_date, v.id, v.voucher_no, COALESCE(NULLIF(l.summary,''), v.summary),
 		       l.debit, l.credit, l.partner_name, v.status
 		FROM gl_voucher_lines l
 		JOIN gl_vouchers v ON v.id = l.voucher_id
@@ -258,7 +258,7 @@ func AccountBook(ctx context.Context, db DBTX, code string, year, month int) (Ac
 
 func GeneralJournal(ctx context.Context, db DBTX, year, month int, account string) ([]LedgerEntry, error) {
 	q := `
-		SELECT v.voucher_date::text, v.id::text, v.voucher_no, COALESCE(NULLIF(l.summary,''), v.summary),
+		SELECT v.voucher_date, v.id, v.voucher_no, COALESCE(NULLIF(l.summary,''), v.summary),
 		       l.account_code, a.name, l.debit, l.credit, l.partner_name, v.status
 		FROM gl_voucher_lines l
 		JOIN gl_vouchers v ON v.id = l.voucher_id

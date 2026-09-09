@@ -130,7 +130,7 @@ func ClosePeriod(ctx context.Context, db DBTX, year, month int, closedBy string)
 		return err
 	}
 	_, err = db.ExecContext(ctx, `
-		UPDATE gl_periods SET status='closed', closed_at=NOW(), closed_by=$3
+		UPDATE gl_periods SET status='closed', closed_at=(strftime('%Y-%m-%dT%H:%M:%SZ','now')), closed_by=$3
 		WHERE year=$1 AND month=$2 AND company_id=$4 AND status='open'`,
 		year, month, closedBy, companyID)
 	return err
