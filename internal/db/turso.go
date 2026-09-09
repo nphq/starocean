@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -30,6 +31,30 @@ import (
 
 func isTursoDSN(dsn string) bool {
 	return strings.HasPrefix(dsn, "sqlite:") || strings.HasPrefix(dsn, "turso:")
+}
+
+// IsolateTursoCacheDir 为当前进程分配独立的 Turso 原生库缓存目录，并返回清理函数。
+//
+// 背景：tursogo 首次使用时把内嵌的 libturso_sync_sdk_kit.so 解压到
+// $TURSO_GO_CACHE_DIR/<hash>/，随后按 sha256 校验。`go test ./...` 会并行运行多个
+// 包的测试二进制，若共享同一缓存目录，会出现“一个进程读到另一个进程正在写入的
+// 半成品文件”，触发 "cached library file hash sum mismatch" panic。
+// 每个进程用独立目录即可彻底消除该跨进程竞态。
+//
+// 仅多进程并发场景（并行测试）需要调用；应用单实例运行无需处理。
+func IsolateTursoCacheDir() func() {
+	if os.Getenv("TURSO_GO_CACHE_DIR") != "" {
+		return func() {}
+	}
+	dir, err := os.MkdirTemp("", "turso-cache")
+	if err != nil {
+		return func() {}
+	}
+	if err := os.Setenv("TURSO_GO_CACHE_DIR", dir); err != nil {
+		_ = os.RemoveAll(dir)
+		return func() {}
+	}
+	return func() { _ = os.RemoveAll(dir) }
 }
 
 // Connect 按 DSN 连接数据库，支持 sqlite:<path>（兼容前缀，Turso 引擎承载）

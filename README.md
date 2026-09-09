@@ -1,7 +1,7 @@
 # StarOcean
 
 <p align="center">
-  <img src="docs/brand/logo-a-compass-512.png" width="120" alt="StarOcean logo">
+  <img src="public/icon.png" width="120" alt="StarOcean logo">
 </p>
 
 [![CI](https://github.com/nphq/starocean/actions/workflows/ci.yml/badge.svg)](https://github.com/nphq/starocean/actions/workflows/ci.yml)
